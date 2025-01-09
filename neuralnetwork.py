@@ -1,5 +1,7 @@
 # Imports 
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import matplotlib.pyplot as plt
 
 # Dummy dataset
@@ -13,8 +15,51 @@ def load_dummy_data():
     return X_train, X_test, X_val, y_train, y_test, y_val
 
 # Models
-def model_pretrained(): # Max, implement pretrained model here
-    return None
+def model_CNN(data=None, epochs=4, batch_size=10, learning_rate=0.001, loss_fn=torch.nn.MSELoss()):
+    if data:
+        # Implement once data preprocessing is done
+        pass
+    else:
+        X_train, X_test, X_val, y_train, y_test, y_val = load_dummy_data()
+
+    X_train = X_train.permute(0, 2, 1)
+    X_test = X_test.permute(0, 2, 1)
+    X_val = X_val.permute(0, 2, 1)
+
+    CNN = nn.Sequential(
+        nn.Conv1d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),  
+        nn.ReLU(), 
+        nn.MaxPool1d(kernel_size=2, stride=2), 
+        nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1),
+        nn.ReLU(),
+        nn.MaxPool1d(kernel_size=2, stride=2),
+        nn.Flatten(),  
+        nn.Linear(32 * (10 // 4), 64), 
+        nn.ReLU(),
+        nn.Linear(64, 1)  
+    )
+    optimizer = torch.optim.Adam(CNN.parameters(), lr=learning_rate)
+
+    for epoch in range(epochs):
+        epoch_loss = 0
+        CNN.train()
+        for i in range(0, len(X_train), batch_size):
+            input = X_train[i:i+batch_size]
+            targets = y_train[i:i+batch_size]
+
+            predictions = CNN(input).squeeze()
+
+            loss = loss_fn(predictions, targets)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item()
+        
+        print(f"Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss / (len(X_train) // batch_size):.4f}")
+
+    return CNN
+
 
 def model_fourier(): # Jan-Paul, implement Fourier model here
     return None
@@ -55,12 +100,14 @@ def plot_results(model = 'self', data=None):
         X_train, X_test, X_val, y_train, y_test, y_val = load_dummy_data()
     if model == 'self':
         lstm, fc = model_self()
-        with torch.no_grad():  # Disable gradient computation for evaluation
+        with torch.no_grad():  
             outputs, (hidden, _) = lstm(X_test)
             y_pred = fc(hidden[-1]).squeeze()
-    elif model == 'pretrained':
-        model = model_pretrained() # Max implement 
-        y_pred = None
+    elif model == 'CNN':
+        CNN = model_CNN(input_channels=1, output_size=1, timesteps=10) 
+        CNN.eval()          
+        with torch.no_grad():  
+            y_pred = CNN(X_test).squeeze()
     else:
         model = model_fourier() # Jan-Paul implement here
         y_pred = None
