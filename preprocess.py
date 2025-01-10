@@ -5,8 +5,8 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import torch
 
-
-input_folder = R"C:\Users\TUDelft\Documents\GitHub\CapstoneAI\probe_run_data"
+#Folder containing .bin, .binlog, (.evt, .evtlog) of one run
+input_folder = R"INPUT_PATH"
 
 
 def find_files(folder_path):
@@ -54,16 +54,12 @@ def get_metadata(metadata_file):
     }
     return metadata
 
-def get_voltages(bin_file, coef1, coef2, output_file="voltage_data.npy"):
-    # Read and convert voltage data
+
+def get_bubbles(bin_file, coef1, coef2):
+
     trans_data = np.fromfile(bin_file, dtype = ">i2")
     voltage_data = trans_data * coef2 + coef1
-    np.save(output_file, voltage_data)
-
-
-def get_bubbles(voltage_file, coef1):
-    voltage_data = np.load(voltage_file)
-
+    
     # Threasholds for bubble detection
     lower_threashold = coef1
     upper_threashold = 0.40 + coef1 
@@ -117,17 +113,14 @@ if __name__ == "__main__":
     print(f"Folder path: {folder_path}")
     print(f"Binary file: {bin_file}")
     print(f"Metadata file: {metadata_file}")
-    print(f"Event log file: {evtlog_file}")
+    print(f"Event log file: {evt_file}")
 
     metadata = get_metadata(metadata_file)
     print(f"Extracted metadata:\n {metadata}")
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
 
-    voltage_file = "voltage_data.npy"
-    if not os.path.exists(voltage_file):
-        get_voltages(bin_file, coef1, coef2, output_file=voltage_file)
-    voltage_data, bubbles_detect = get_bubbles(voltage_file, coef1)
+    voltage_data, bubbles_detect = get_bubbles(voltage_file, coef1, coef2)
 
 
     voltage_data, bubbles = get_bubbles(voltage_file, coef1)
