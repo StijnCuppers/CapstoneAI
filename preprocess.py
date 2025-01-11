@@ -4,9 +4,10 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import torch
+import Evtx.Evtx as evtx
 
 #Folder containing .bin, .binlog, (.evt, .evtlog) of one run
-input_folder = R"INPUT_PATH"
+input_folder = R"C:\Users\Silke\Documents\GitHub\CapstoneAI\Data"
 
 
 def find_files(folder_path):
@@ -32,6 +33,9 @@ def find_files(folder_path):
     return bin_file, metadata_file, evt_file
 
 
+"-------------------------------------------------------------------------------------------------------"
+
+
 def get_metadata(metadata_file):
     """
     Extracts metadata from .binlog.
@@ -53,6 +57,9 @@ def get_metadata(metadata_file):
         "bin_file": root.find(".//channel").attrib['channelOutputFile']    
     }
     return metadata
+
+
+"-------------------------------------------------------------------------------------------------------"
 
 
 def get_bubbles(bin_file, coef1, coef2):
@@ -90,6 +97,8 @@ def get_bubbles(bin_file, coef1, coef2):
     return voltage_data, bubbles_detect
 
 
+"-------------------------------------------------------------------------------------------------------"
+
 
 def bubble_labels(evt_file):
     """
@@ -99,9 +108,13 @@ def bubble_labels(evt_file):
         evt_file (str): Path to eventlog file (.evt)
 
     Returns:
-
+        list with arrival time (t_a), exit time (t_e), arrival velocity (v_a), 
+        exit velocity (v_e) for every bubble in chronological order.
+        [[t_a, t_e, v_a, v_e], [...], ...]
     """
-    
+    return -1 # temporary value while I work on the code
+
+"-------------------------------------------------------------------------------------------------------"
 
 
 if __name__ == "__main__":
