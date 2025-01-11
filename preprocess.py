@@ -59,6 +59,7 @@ def get_bubbles(bin_file, coef1, coef2):
 
     trans_data = np.fromfile(bin_file, dtype = ">i2")
     voltage_data = trans_data * coef2 + coef1
+    print(f"Total voltage values: {len(voltage_data)}")
     
     # Threasholds for bubble detection
     lower_threashold = coef1
@@ -120,10 +121,5 @@ if __name__ == "__main__":
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
 
-    voltage_data, bubbles_detect = get_bubbles(voltage_file, coef1, coef2)
-
-
-    voltage_data, bubbles = get_bubbles(voltage_file, coef1)
-    print(f"Total voltage values: {len(voltage_data)}")
-    print(f"Total bubbles extracted: {len(bubbles)}")
+    voltage_data, bubbles_detect = get_bubbles(bin_file, coef1, coef2)
 
