@@ -7,7 +7,7 @@ import torch
 import Evtx.Evtx as evtx
 
 #Folder containing .bin, .binlog, (.evt, .evtlog) of one run
-input_folder = R"INPUT_PATH"
+input_folder = R"INPUT_PATH_HERE"
 
 
 def find_files(folder_path):
