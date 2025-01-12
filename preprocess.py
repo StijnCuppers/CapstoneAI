@@ -78,7 +78,6 @@ def get_bubbles(bin_file, coef1, coef2, w):
         coef1 (float): Channel coefficient 1 (offset).
         coef2 (float): Channel coefficient 2 (scaling factor).
         w (int): Bubble window for bubble detection
-        plot (bool): Whether to plot data and threasholds for some bubbles.
         
     Returns:
         tuple: (voltage_data, bubbles) where:
