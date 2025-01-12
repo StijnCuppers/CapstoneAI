@@ -62,39 +62,58 @@ def get_metadata(metadata_file):
 "-------------------------------------------------------------------------------------------------------"
 
 
-def get_bubbles(bin_file, coef1, coef2):
-
-    trans_data = np.fromfile(bin_file, dtype = ">i2")
+def get_bubbles(bin_file, coef1, coef2, w):
+    """
+    Extracts bubble entries and exists implementing dual-threasholding strategy.
+    
+    Args:
+        bin_file (str): Path to the binary file (.bin).
+        coef1 (float): Channel coefficient 1 (offset).
+        coef2 (float): Channel coefficient 2 (scaling factor).
+        w (int): Bubble window for bubble detection
+        
+    Returns:
+        tuple: (voltage_data, bubbles) where:
+            -voltage_data (array): Array of voltage values.
+            -bubbles (list): Tuple list of bubble data (tA0, tA, tA1, tE0, tE, tE1).
+    """    
+    # Read binary data and apply conversion to voltage
+    trans_data = np.memmap(bin_file, dtype=">i2", mode="r")
     voltage_data = trans_data * coef2 + coef1
-    print(f"Total voltage values: {len(voltage_data)}")
     
     # Threasholds for bubble detection
     lower_threashold = coef1
-    upper_threashold = 0.40 + coef1 
-
-    #Initializing bubble detection
-    bubbles_detect = []
+    upper_threashold = 0.20 + coef1 
+    bubbles = []
     in_bubble = False
-    tA = None
-    tE = None
+    last_lower, tA, tE = None, None, None
 
-    # Detect bubbles 
+    # Detecting bubbles
     for i, voltage in enumerate(voltage_data):
-        # Bubble entry
         if not in_bubble:
-            if voltage > upper_threashold:
-                tA = i
-                in_bubble = True
-        # Bubble exit
-        else:
             if voltage < lower_threashold:
+                last_lower = i
+            # Valid entry
+            if last_lower is not None and voltage > upper_threashold:
+                tA = last_lower
+                tA0 = max(0, tA - w)
+                tA1 = max(0, tA + w)
+                in_bubble = True
+        else:
+            if voltage < upper_threashold:
                 tE = i
-                bubbles_detect.append((len(bubbles_detect), tA, tE))
-                in_bubble = False
-                tA = None
-                tE = None
-    print(f"Bubbles extracted: {len(bubbles_detect)}")
-    return voltage_data, bubbles_detect
+                # Valid exit
+                if voltage < lower_threashold:
+                    tE = i - 1
+                    tE0 = min(len(voltage_data) - 1, tE - w)
+                    tE1 = min(len(voltage_data) - 1, tE + w)
+                    bubbles.append((tA0, tA, tA1, tE0, tE, tE1))
+                    in_bubble = False
+                    last_lower = None
+
+    print(f"Bubbles detected: {len(bubbles)}")
+    return voltage_data, bubbles
+    
 
 
 "-------------------------------------------------------------------------------------------------------"
@@ -224,12 +243,14 @@ if __name__ == "__main__":
     print(f"Metadata file: {metadata_file}")
     print(f"Event log file: {evt_file}")
 
+
+
     # TEMPORARILY COMMENT THIS BLOCK TO SAVE TIME WHEN TESTING OTHER FUNCTIONS; IT TAKES A LONG TIME
     metadata = get_metadata(metadata_file)
     print(f"Extracted metadata:\n {metadata}")
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
-    voltage_data, bubbles_detect = get_bubbles(bin_file, coef1, coef2)
+    voltage_data, bubbles_detect = get_bubbles(bin_file, coef1, coef2, w=10000)
 
     print("v_total labels:")
     v_total_labels = v_total_labels(evt_file)
