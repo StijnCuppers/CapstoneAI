@@ -7,7 +7,7 @@ import torch
 import Evtx.Evtx as evtx
 
 #Folder containing .bin, .binlog, (.evt, .evtlog) of one run
-input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
+input_folder = R"C:\TEST\TUDelft\Desktop\bubble_data"
 
 
 def find_files(folder_path):
