@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 import os
 import numpy as np
 import pandas as pd
@@ -399,4 +397,3 @@ if __name__ == "__main__":
     print(f"amount of bubbles with v_out: {len(v_out_labels)}")
 
     print(labelmatch(v_total_labels, 'v_total_labels', 'seperate'))
->>>>>>> Stashed changes
