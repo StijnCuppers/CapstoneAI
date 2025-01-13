@@ -342,7 +342,13 @@ if __name__ == "__main__":
     # # If you do not have the zipped file, run this only once and then comment again. It takes some time and a lot of storage.
     v_in = v_in_labels(evt_file)
     v_out = v_out_labels(evt_file)
+    v_tot = v_total_labels(evt_file)
 
     voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2000)
     bubbles_seperate_df = save_bubbles(voltage_data, bubbles, mode="seperate", run_name=run_name, labels=True, v_in_labels=v_in, v_out_labels=v_out)
     zip_all_csv_files('all_bubbles.zip')
+
+    print("FROM LABEL FILE:")
+    print(f"amount of bubbles with v_in and v_out: {len(v_tot)}")
+    print(f"amount of bubbles with v_in: {len(v_in)}")
+    print(f"amount of bubbles with v_out: {len(v_out)}")
