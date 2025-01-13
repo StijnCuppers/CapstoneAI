@@ -3,10 +3,8 @@ import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
-import torch
 
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
-# Replace with your own input path for now: R"input path"
 input_folder = R"C:\Users\Silke\Documents\GitHub\CapstoneAI\Data"
 
 
@@ -18,19 +16,23 @@ def find_files(folder_path):
         folder_path (str): Path to the folder.
 
     Returns:
-        tuple: Paths to the .bin_file, .binlog_file and .evtlog_file (None if not found).
+        tuple: Paths to the .bin_file, .binlog_file .evtlog_file (None if not found) and run_name.
     """
     bin_file = None
     metadata_file = None
     evt_file = None
+    run_name = None
+
     for file in os.listdir(folder_path):
         if file.endswith(".bin") and "_stream" not in file:
             bin_file = os.path.join(folder_path, file)
+            run_name = os.path.splitext(file)[0]
         elif file.endswith(".binlog"):
             metadata_file = os.path.join(folder_path, file)
         elif file.endswith(".evt") and "_stream" not in file:
             evt_file = os.path.join(folder_path, file)
-    return bin_file, metadata_file, evt_file
+        
+    return bin_file, metadata_file, evt_file, run_name
 
 
 "-------------------------------------------------------------------------------------------------------"
@@ -113,9 +115,60 @@ def get_bubbles(bin_file, coef1, coef2, w):
 
     print(f"Bubbles detected: {len(bubbles)}")
     return voltage_data, bubbles
-    
 
+   
+def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None):
+    """
+    Save bubbles to a Dataframe and CSV file.
 
+    Args:
+        voltage_data (array): Array of voltage data
+        bubbles (list): Tuple list of bubble data (tA0, tA, tA1, tE0, tE, tE1)
+        mode (str): Determines what voltage data to include:
+            - "whole": Voltage from tA0 to tE1 (whole bubble)
+            - "seperate" Voltage from tA0 to tA1 (entry) and tE0 to tE1 (exit)
+            - "entry": Voltage from tA0 to tA1 (entry)
+            - "exit": Voltage from tE0 to tE1 (exit)
+        run_name (str): Base name of the run
+
+    Returns:
+        pd.DataFrame: containing bubble details and voltage segments
+    """
+    bubble_data = []
+
+    for idx, (tA0, tA, tA1, tE0, tE, tE1) in enumerate(bubbles):
+        voltage_bubble = voltage_data[tA0:tE1 + 1]
+        voltage_entry = voltage_data[tA0:tA1 + 1]
+        voltage_exit = voltage_data[tE0:tE1 + 1]
+
+        bubble_info = {
+            "bubble": idx + 1,
+            "tA0" : tA0,
+            "tA": tA,
+            "tA1": tA1,
+            "tE0": tE0, 
+            "tE": tE,
+            "tE1": tE1   
+        }
+
+        if mode == "whole":
+            bubble_info["voltage_full"] = voltage_bubble.tolist()
+        elif mode == "seperate":
+            bubble_info["voltage_entry"] = voltage_entry.tolist()
+            bubble_info["voltage_exit"] = voltage_exit.tolist()
+        elif mode == "entry":
+            bubble_info["voltage_entry"] = voltage_exit.tolist()
+        elif mode == "exit":
+            bubble_info["voltage_exit"] = voltage_exit.tolist()
+        bubble_data.append(bubble_info)
+
+    bubble_df = pd.DataFrame(bubble_data)
+
+    output_file = f"{run_name}_{mode}.csv"
+    bubble_df.to_csv(output_file, index=False)
+    print(f"Bubble data saves to {output_file}")
+
+    return bubble_df
 "-------------------------------------------------------------------------------------------------------"
 
 
@@ -234,23 +287,20 @@ def v_in_labels(evt_file):
 if __name__ == "__main__":
     folder_path = input_folder
 
-    bin_file, metadata_file, evt_file = find_files(folder_path)
+    bin_file, metadata_file, evt_file, run_name = find_files(folder_path)
     if not bin_file or not metadata_file:
         print(".bin or .binlog file not found. Exiting script.")
         sys.exit(1)
-    print(f"Folder path: {folder_path}")
-    print(f"Binary file: {bin_file}")
-    print(f"Metadata file: {metadata_file}")
-    print(f"Event log file: {evt_file}")
 
-
-
-    # TEMPORARILY COMMENT THIS BLOCK TO SAVE TIME WHEN TESTING OTHER FUNCTIONS; IT TAKES A LONG TIME
     metadata = get_metadata(metadata_file)
-    print(f"Extracted metadata:\n {metadata}")
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
-    voltage_data, bubbles_detect = get_bubbles(bin_file, coef1, coef2, w=10000)
+
+    voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2500)
+    bubbles_whole_df = save_bubbles(voltage_data, bubbles, mode = "whole", run_name=run_name)
+    print(bubbles_whole_df.head())
+    bubbles_seperate_df = save_bubbles(voltage_data, bubbles, mode = "seperate", run_name=run_name)
+    print(bubbles_seperate_df.head())
 
     print("v_total labels:")
     v_total_labels = v_total_labels(evt_file)
