@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
+import zipfile
 
 import dataloading 
 
@@ -10,8 +11,6 @@ import dataloading
 "---------------------------------------------------------------------------------------"
 "Functions to load the bubble signals from the zipped .csv files"
 
-# change to your data path
-data_path = R"C:\Users\Silke\Documents\GitHub\CapstoneAI\Data\all_bubbles.zip"
 
 def read_whole_csv_from_zip(zip_filename):
     """
@@ -26,8 +25,11 @@ def read_whole_csv_from_zip(zip_filename):
     dataframes = []
     
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
+        print(f"Opened ZIP file: {zip_filename}")
         for file in zipf.namelist():
+            print(f"Found file in ZIP: {file}")
             if file.endswith('_whole.csv'):
+                print(f"Reading file: {file}")
                 with zipf.open(file) as csvfile:
                     df = pd.read_csv(csvfile)
                     dataframes.append(df)
@@ -48,13 +50,16 @@ def read_seperate_csv_from_zip(zip_filename):
     dataframes = []
     
     with zipfile.ZipFile(zip_filename, 'r') as zipf:
+        print(f"Opened ZIP file: {zip_filename}")
         for file in zipf.namelist():
+            print(f"Found file in ZIP: {file}")
             if file.endswith('_seperate.csv'):
+                print(f"Reading file: {file}")
                 with zipf.open(file) as csvfile:
                     df = pd.read_csv(csvfile)
                     dataframes.append(df)
                     print(f"Read {file} from {zip_filename}")
-
+    
     return dataframes
 
 
@@ -77,5 +82,8 @@ def scale_time(data, length):
     return
 
 
+"----------------------------------------------------------------------------------"
+"Calling the functions"
 
-
+whole_bubbles = read_whole_csv_from_zip("all_bubbles.zip")
+print(whole_bubbles)
