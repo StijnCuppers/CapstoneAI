@@ -10,7 +10,7 @@ input_folder = R"C:\Users\Silke\Documents\GitHub\CapstoneAI\Data"
 
 def find_files(folder_path):
     """
-    Find .bin and .bin.log and (if avalible) .evtlog files in given folder.
+    Find .bin and .bin.log and (if available) .evtlog files in given folder.
 
     Args:
         folder_path (str): Path to the folder.
