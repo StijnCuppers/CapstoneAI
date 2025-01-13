@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
+import zipfile
 
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
 input_folder = R"C:\Users\Silke\Documents\GitHub\CapstoneAI\Data"
@@ -169,6 +170,24 @@ def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None):
     print(f"Bubble data saves to {output_file}")
 
     return bubble_df
+
+
+def zip_all_csv_files(zip_filename):
+    """
+    Zip all CSV files in the current directory into a single ZIP file.
+
+    Args:
+        zip_filename (str): Name of the output ZIP file
+    """
+    with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for file in os.listdir():
+            if file.endswith('.csv'):
+                zipf.write(file)
+                print(f"Added {file} to {zip_filename}")
+
+    print(f"All CSV files zipped as {zip_filename}")
+
+
 "-------------------------------------------------------------------------------------------------------"
 
 
@@ -296,11 +315,15 @@ if __name__ == "__main__":
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
 
-    voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2500)
-    bubbles_whole_df = save_bubbles(voltage_data, bubbles, mode = "whole", run_name=run_name)
-    print(bubbles_whole_df.head())
-    bubbles_seperate_df = save_bubbles(voltage_data, bubbles, mode = "seperate", run_name=run_name)
-    print(bubbles_seperate_df.head())
+    # # !!! IMPORTANT !!! These lines are commented because they read the voltage file and save them as zipped .csv files
+    # # If you do not have the zipped file, run this only once and then comment again. It takes some time and a lot of storage.
+    
+    # voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2500)
+    # bubbles_whole_df = save_bubbles(voltage_data, bubbles, mode = "whole", run_name=run_name)
+    # print(bubbles_whole_df.head())
+    # bubbles_seperate_df = save_bubbles(voltage_data, bubbles, mode = "seperate", run_name=run_name)
+    # print(bubbles_seperate_df.head())
+    # zip_all_csv_files('all_bubbles.zip')
 
     print("v_total labels:")
     v_total_labels = v_total_labels(evt_file)
