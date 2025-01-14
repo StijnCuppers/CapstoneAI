@@ -64,13 +64,12 @@ def read_seperate_csv_from_zip(zip_filename):
             if file.endswith('seperate.csv'):
                 print(f"Reading file: {file}")
                 with zipf.open(file) as csvfile:
-                    df = pd.read_csv(csvfile, header=0)
+                    df = pd.read_csv(csvfile, header=0, delimiter=";")
                     print(f"Read {file} from {zip_filename}")
     
     # converting the col with voltages (now seen as str) to lists
-    for col in ['voltage_entry', 'voltage_exit']:
+    for col in ["voltage_entry", "voltage_exit"]:
         df[col] = df[col].apply(ast.literal_eval)
-        df[col] = df[col].apply(lambda x: np.array(x))
     
     return df
 
@@ -151,16 +150,17 @@ def scale_time(data, length=None):
 "----------------------------------------------------------------------------------"
 "Calling the functions using the .csv files"
 
-# seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
-# print("\n")
-# print(seperate_bubbles.head())
+seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
+print("\n")
+print(seperate_bubbles.head())
 
-# voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
-# scaled_bubbles = scale_time(voltage_exit_2d, length=None)
+voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
+scaled_bubbles = scale_time(voltage_exit_2d, length=None)
 # #lengths = [len(sample) for sample in scaled_bubbles]
 
-# plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
-# plt.show()
+plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
+print(scaled_bubbles[0])
+plt.show()
 
 
 ## Whole bubbles: takes too long to load from CSV file. Loading from dataloading.py is more efficient.
