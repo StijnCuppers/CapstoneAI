@@ -61,7 +61,7 @@ def read_seperate_csv_from_zip(zip_filename):
         print(f"Opened ZIP file: {zip_filename}")
         for file in zipf.namelist():
             print(f"Found file in ZIP: {file}")
-            if file.endswith('_seperate.csv'):
+            if file.endswith('seperate.csv'):
                 print(f"Reading file: {file}")
                 with zipf.open(file) as csvfile:
                     df = pd.read_csv(csvfile, header=0)
