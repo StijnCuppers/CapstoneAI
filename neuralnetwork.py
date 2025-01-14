@@ -13,6 +13,10 @@ def load_dummy_data():
     y_test = torch.tensor([sum(seq[-1]) for seq in X_test], dtype=torch.float32)
     y_val = torch.randint(0, 2, (100,))
     return X_train, X_test, X_val, y_train, y_test, y_val
+    
+X_train, X_test, X_val, y_train, y_test, y_val = load_dummy_data()
+
+print(X_train.shape)
 
 # Models
 def model_CNN(data=None, epochs=4, batch_size=10, learning_rate=0.001, loss_fn=torch.nn.MSELoss()):
@@ -61,7 +65,28 @@ def model_CNN(data=None, epochs=4, batch_size=10, learning_rate=0.001, loss_fn=t
     return CNN
 
 
-def model_fourier(): # Jan-Paul, implement Fourier model here
+def model_fourier(data=None, epochs=4, batch_size=10, learning_rate=0.001, loss_fn=torch.nn.MSELoss()): # Jan-Paul, implement Fourier model here
+    if data:
+        pass # Implement once preprocess is done
+    else:
+        X_train, X_test, X_val, y_train, y_test, y_val = load_dummy_data()
+
+
+    fs = 20833.3  # Sampling frequency in kHz
+    fft_result = np.fft.fft(signal)
+    frequencies = np.fft.fftfreq(len(fft_result), d=1/fs)
+
+    input_size = len(frequencies)
+
+
+    model = torch.nn.Sequential(
+            torch.nn.Linear(input_size, hidden_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_size, output_size)
+        )
+    
+
+
     return None
 
 def model_self(data = None, epochs = 2, batch_size = 10, learning_rate = 0.001, loss_fn = torch.nn.MSELoss()):
@@ -122,4 +147,4 @@ def plot_results(model = 'self', data=None):
     plt.show()
 
 # Main
-plot_results()
+#plot_results()
