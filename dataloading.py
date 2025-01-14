@@ -161,13 +161,7 @@ def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None, labels=None
                         break                
 
         bubble_info = {
-            "bubble": idx + 1,
-            "tA0" : tA0,
-            "tA": tA,
-            "tA1": tA1,
-            "tE0": tE0, 
-            "tE": tE,
-            "tE1": tE1   
+            "bubble": idx + 1  
         }
         
         if labels:
@@ -175,20 +169,20 @@ def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None, labels=None
             bubble_info["VeloOut"] = velo_out
 
         if mode == "whole":
-            bubble_info["voltage_full"] = voltage_bubble
+            bubble_info["voltage_full"] = voltage_bubble.tolist()
         elif mode == "seperate":
-            bubble_info["voltage_entry"] = voltage_entry
-            bubble_info["voltage_exit"] = voltage_exit
+            bubble_info["voltage_entry"] = voltage_entry.tolist()
+            bubble_info["voltage_exit"] = voltage_exit.tolist()
         elif mode == "entry":
-            bubble_info["voltage_entry"] = voltage_exit
+            bubble_info["voltage_entry"] = voltage_exit.tolist()
         elif mode == "exit":
-            bubble_info["voltage_exit"] = voltage_exit
+            bubble_info["voltage_exit"] = voltage_exit.tolist()
         bubble_data.append(bubble_info)
 
     bubble_df = pd.DataFrame(bubble_data)
 
 
-    output_file = f"{run_name}t{mode}.csv"
+    output_file = f"{run_name}_{mode}.csv"
     bubble_df.to_csv(output_file, index=False, sep=";")
     print(f"Bubble data saves to {output_file}")
 
@@ -212,7 +206,8 @@ def zip_all_csv_files(zip_filename):
 
 
 "-------------------------------------------------------------------------------------------------------"
-
+def get_labels(evt_file):
+    return None
 
 def bubble_labels(evt_file):
     """
