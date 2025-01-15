@@ -6,7 +6,6 @@ import zipfile
 import sys
 
 
-
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
 input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
 
@@ -200,24 +199,59 @@ def zip_all_csv_files(zip_filename):
 
     print(f"All CSV files zipped as {zip_filename}")
 
-def dataloading():
-    
-    return None
 
+def dataloading(folder_path, labels, mode, w=2000):
+    """
+    Easy function to use dataloading.
 
-if __name__ == "__main__":
-    folder_path = input_folder
+    Args:
+        input_path (str): Path to bubble data.
+        labels (bool): Whether data needs to be labeled.
+        mode (str): Mode of voltage data extraction:
+            - "whole": Extracts all voltage data for each detected bubble.
+            - "seperate": Extracts only entry and exit voltage data of each detected bubble.
+        w (int): Bubble window size for detection. 2000 is default
+
+    Returns:
+        tuple:
+            - bubbles_df (pd.DataFrame): DataFrame containing labeled bubbles (if labels).
+    """    
+    print(f"Starting dataloading for input_path = {folder_path}, labels = {labels}, mode = {mode}, w = {w}")
+    print(f"This process might take some time...")
 
     bin_file, metadata_file, run_name, evt_file = find_files(folder_path)
-    if not bin_file or not metadata_file:
-        print(".bin or .binlog file not found. Exiting script.")
+    if not bin_file:
+        raise FileNotFoundError(".bin file is missing in the provided folder.")
         sys.exit(1)
+    if not metadata_file:
+        raise FileNotFoundError(".binlog file is missing in the provided folder.")
+    print("Files located successfully.")
 
     metadata = get_metadata(metadata_file)
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
+    print(f"Metadata extracted: {metadata}")
 
-    bubble_labels = get_labels(evt_file)
-    voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2000)
-    bubbles_df= save_bubbles(voltage_data, bubbles, mode="seperate", run_name=run_name, bubble_labels=bubble_labels)
+    if labels and evt_file:
+        bubble_labels = get_labels(evt_file)
+        print(f"Labels extracted: {len(bubble_labels)} labels found.")
+    else:
+        bubble_labels = None
+        print("No labels provided or .evt file missing. Processing as unlabeled data.")
+
+    voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=w)
+    print(f"Voltage data extracted. {len(bubbles)} bubbles detected.")
+
+    bubbles_df= save_bubbles(voltage_data, bubbles, mode=mode, run_name=run_name, bubble_labels=bubble_labels)
     zip_all_csv_files('all_bubbles.zip')
+
+    print("All bubble data saved and zipped")
+    print("Dataloading completed")
+    return bubbles_df
+
+
+if __name__ == "__main__":
+    folder_path = input_folder
+    labels = True
+    mode = "seperate"
+    bubbles_df = dataloading(folder_path, labels, mode, w=2000)
