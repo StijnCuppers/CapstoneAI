@@ -136,7 +136,7 @@ def scale_time(data, length=None):
 
 def frame_waves(data, mode, length=500):
     """
-    Function that crops to frame the waves. Only works for data that is only v_out or v_in signals (mode).
+    Function that crops to the waves. Only works for data that is only v_out or v_in signals (mode).
 
     Args:
         data: numpy array or list with the voltage data of the bubbles
@@ -146,12 +146,12 @@ def frame_waves(data, mode, length=500):
     Output:
         Numpy array with the cropped voltages, dimension [#samples, length]
     """
-    if type(data) is not type(np.array([1,2])):
+    if not isinstance(data, np.ndarray):
         data = np.array(data)
 
     # if mode is in, grabs the last <length> datapoints
     if mode == "in":
-        cropped_data = np.array([sample[length:] for sample in data])
+        cropped_data = np.array([sample[-length:] for sample in data])
 
     # if mode is out, grabs the first <length
     if mode == "out":
@@ -215,6 +215,59 @@ def valid_velo_data(data, mode):
     return np.array(x), np.array(y)
 
 
+def valid_velo_data_cropped(data, mode, length=500):
+    """
+    Extracts the data with valid velocities and combines it with the frame_waves function. 
+    Only works for pandas DataFrames right now.
+
+    Args:
+        data: enter the dataframe with bubble voltages and labels
+        mode: "in" gets all bubbles with a valid VeloIn, "out" with a valid VeloOut, 
+                "or" with either valid VeloIn or VeloOut
+        length: The amount of timesteps the output will be. Standard value is set at 500.
+
+    Output:
+        x: Numpy array with cropped voltage data of all valid bubbles. Either only in or out signal.
+        y: Numpy array with labels of all valid bubbles
+    """
+    if mode not in ["in", "out", "or"]:
+        print("Error: choose valid mode. Choose from ['in', 'out', 'or']")
+        return
+    
+    if mode == "in":
+        valid = data[data["VeloIn"] != -1]
+        x = frame_waves(valid["voltage_entry"].tolist(), mode, length=length)
+        y = valid["VeloIn"].astype(float).tolist()
+
+    if mode == "out":
+        valid = data[data["VeloOut"] != -1]
+        x = frame_waves(valid["voltage_exit"].tolist(), mode, length=length)
+        y = valid["VeloOut"].astype(float).tolist()
+    
+    if mode == "or":
+        x = []
+        y = []
+        # first seperating everything in 
+        valid = data[(data["VeloOut"] != -1) | (data["VeloIn"]!= -1)]
+        
+        for _, row in valid.iterrows():
+            if row["VeloIn"] != -1 and row["VeloOut"] != -1:
+                if row["VeloIn"] < row["VeloOut"]:
+                    x.append(row["voltage_entry"][-length:])
+                    y.append(row["VeloIn"])
+                else:
+                    x.append(row["voltage_exit"][:length])
+                    y.append(row["VeloOut"])
+            elif row["VeloIn"] != -1:
+                x.append(row["voltage_entry"][-length:])
+                y.append(row["VeloIn"])
+            else:
+                x.append(row["voltage_exit"][:length])
+                y.append(row["VeloOut"])
+        
+
+    return np.array(x), np.array(y)
+
 "----------------------------------------------------------------------------------"
 "Loading the data from dataloading.py (from meta and bin files etc.)"
 
@@ -241,17 +294,17 @@ def valid_velo_data(data, mode):
 "----------------------------------------------------------------------------------"
 "Calling the functions using the .csv files"
 
-seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
-print("\n")
-print(seperate_bubbles.head())
+# seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
+# print("\n")
+# print(seperate_bubbles.head())
 
-voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
-scaled_bubbles = scale_time(voltage_exit_2d, length=None)
-# #lengths = [len(sample) for sample in scaled_bubbles]
+# voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
+# scaled_bubbles = scale_time(voltage_exit_2d, length=None)
+# # #lengths = [len(sample) for sample in scaled_bubbles]
 
-plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
-print(scaled_bubbles[0])
-plt.show()
+# plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
+# print(scaled_bubbles[0])
+# plt.show()
 
 
 ## Whole bubbles: takes too long to load from CSV file. Loading from dataloading.py is more efficient.
