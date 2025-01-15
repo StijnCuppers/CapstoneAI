@@ -16,6 +16,10 @@ import dataloading
 # scale_time: makes sure all bubble arrays are equal size (! only needed for whole bubbles)
 # frame_waves: crops data so it zooms in on the waves
 # valid_velo_data: returns data and labels with only valid velocities
+# valid_velo_data_cropped: combines frame_waves and valid_velo_data
+# random_flip: duplicates and randomly flips some data
+# random_noise: duplicates and randomly adds noise to some data
+
 
 ########################################################
 
@@ -267,6 +271,98 @@ def valid_velo_data_cropped(data, mode, length=500):
         
 
     return np.array(x), np.array(y)
+
+
+def random_flip(data, labels, chance, random_seed=None):
+    """
+    Randomly duplicates some samples and performs a horizontal flip on them.
+
+    Args:
+        data: 2D Numpy array (or list) with features of the samples
+        labels: 1D Numpy array (or list) with labels per sample
+        chance: fraction of data (between 0 and 1) that will get flipped and duplicated
+        random_seed: optional random seed (integer)
+
+    Output:
+        x: Numpy array with the duplicated/transformed samples appended
+        y: Numpy array with the duplicated labels appended
+    """
+    if not (0. < chance < 1.):
+        raise ValueError("Chance should be between 0 and 1 (inclusive)")
+    if len(data) != len(labels):
+        raise ValueError("data and labels should be the same length")
+
+    if isinstance(data, list):
+        data = np.array(data)
+    if isinstance(labels, list):
+        labels = np.array(labels)
+
+    # set random seed if applicable
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    # amount of images to be flipped:
+    n = int(chance*len(data))
+
+    # creating an array of length n with random numbers 
+    random_list = np.random.randint(0, len(data), n)
+
+    x_new = data
+    y_new = labels
+    for rand in random_list:
+        duplicate = data[rand][::-1]
+        duplicate_label = labels[rand]
+        x_new = np.concatenate([x_new, [duplicate]])
+        y_new = np.append(y_new, duplicate_label)
+
+    return x_new, y_new
+
+
+def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
+    """
+    Duplicates some samples and adds noise to them.
+    
+    Args:
+        data: 2D Numpy array (or list) with features of the samples
+        labels: 1D Numpy array (or list) with labels per sample
+        chance: fraction of data (between 0 and 1) that will get augmented and duplicated
+        noise_level: standard deviation in the noise. Must be non-negative. 
+
+    Output:
+        x: Numpy array with the duplicated/transformed samples appended
+        y: Numpy array with the duplicated labels appended
+    """
+
+    if not (0. < chance < 1.):
+        raise ValueError("Chance should be between 0 and 1 (inclusive)")
+    if len(data) != len(labels):
+        raise ValueError("data and labels should be the same length")
+
+    if isinstance(data, list):
+        data = np.array(data)
+    if isinstance(labels, list):
+        labels = np.array(labels)
+
+    # set random seed if applicable
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    # amount of images to be flipped:
+    n = int(chance*len(data))
+
+    # creating an array of length n with random numbers 
+    random_list = np.random.randint(0, len(data), n)
+
+    x_new = data
+    y_new = labels
+    for rand in random_list:
+        duplicate = data[rand] + np.random.normal(0, noise_level, data[rand].shape)
+        duplicate_label = labels[rand]
+        x_new = np.concatenate([x_new, [duplicate]])
+        y_new = np.append(y_new, duplicate_label)
+
+    return x_new, y_new
+
 
 "----------------------------------------------------------------------------------"
 "Loading the data from dataloading.py (from meta and bin files etc.)"
