@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import zipfile
 
+
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
 input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
 
