@@ -8,9 +8,20 @@ import ast
 
 import dataloading
 
+########################################################
+# TABLE OF CONTENTS
+
+# read_whole_csv_from_zip (not working at the moment, files too large)
+# read_seperate_csv_from_zip
+# scale_time: makes sure all bubble arrays are equal size (! only needed for whole bubbles)
+# frame_waves: crops data so it zooms in on the waves
+# valid_velo_data: returns data and labels with only valid velocities
+
+########################################################
+
 
 #########################################################
-# REMOVE FUNCTIONS IN THIS BLOCK FOR FINAL MODEL
+# REMOVE FUNCTIONS IN THIS BLOCK BELOW FOR FINAL MODEL
 # THESE ARE ONLY FOR PROCESSING THE ZIPPED .CSV FILES
 #########################################################
 
@@ -122,6 +133,86 @@ def scale_time(data, length=None):
     
     return np.array(scaled_data)
 
+
+def frame_waves(data, mode, length=500):
+    """
+    Function that crops to frame the waves. Only works for data that is only v_out or v_in signals (mode).
+
+    Args:
+        data: numpy array or list with the voltage data of the bubbles
+        mode: two options; "in" for data of bubble entry or "out" for data of bubble exit. 
+        length: amount of timesteps of the cropped part. Standard value is set at 500.
+
+    Output:
+        Numpy array with the cropped voltages, dimension [#samples, length]
+    """
+    if type(data) is not type(np.array([1,2])):
+        data = np.array(data)
+
+    # if mode is in, grabs the last <length> datapoints
+    if mode == "in":
+        cropped_data = np.array([sample[length:] for sample in data])
+
+    # if mode is out, grabs the first <length
+    if mode == "out":
+        cropped_data = np.array([sample[:length] for sample in data])
+    
+    return cropped_data
+
+
+def valid_velo_data(data, mode):
+    """
+    Extracts the data with valid velocities. Only works for pandas DataFrames right now.
+
+    Args:
+        data: enter the dataframe with bubble voltages and labels
+        mode: "in" gets all bubbles with a valid VeloIn, "out" with a valid VeloOut, 
+                "or" with either valid VeloIn or VeloOut
+
+    Output:
+        x: Numpy array with voltage data of all valid bubbles. Either only in or out signal.
+        y: Numpy array with labels of all valid bubbles
+    """
+    if mode not in ["in", "out", "or"]:
+        print("Error: choose valid mode. Choose from ['in', 'out', 'or']")
+        return
+    
+    if mode == "in":
+        valid = data[data["VeloIn"] != -1]
+        x = valid["voltage_entry"].tolist()
+        y = valid["VeloIn"].astype(float).tolist()
+
+    if mode == "out":
+        valid = data[data["VeloOut"] != -1]
+        x = valid["voltage_exit"].tolist()
+        y = valid["VeloOut"].astype(float).tolist()
+
+    if mode == "or":
+        x = []
+        y = []
+
+        # first seperating everything that has either/or both VeloIn and VeloOut 
+        valid = data[(data["VeloOut"] != -1) | (data["VeloIn"]!= -1)]
+        
+        # In case there's two velocities, returns the minimum velocity and data
+        for _, row in valid.iterrows():
+            if row["VeloIn"] != -1 and row["VeloOut"] != -1:
+                if row["VeloIn"] < row["VeloOut"]:
+                    x.append(row["voltage_entry"])
+                    y.append(row["VeloIn"])
+                else:
+                    x.append(row["voltage_exit"])
+                    y.append(row["VeloOut"])
+            elif row["VeloIn"] != -1:
+                x.append(row["voltage_entry"])
+                y.append(row["VeloIn"])
+            else:
+                x.append(row["voltage_exit"])
+                y.append(row["VeloOut"])
+        
+
+    
+    return np.array(x), np.array(y)
 
 
 "----------------------------------------------------------------------------------"
