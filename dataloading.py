@@ -6,6 +6,7 @@ import zipfile
 import sys
 
 
+
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
 input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
 
