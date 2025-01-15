@@ -2,8 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
-import matplotlib.pyplot as plt
 import zipfile
+import sys
+
 
 # Folder containing .bin, .binlog, (.evt, .evtlog) of one run
 input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
@@ -11,18 +12,15 @@ input_folder = R"C:\Users\TUDelft\Desktop\bubble_data"
 
 def find_files(folder_path):
     """
-    Find .bin and .bin.log and (if available) .evtlog files in given folder.
+    Find .bin, .bin.log, run name and (if needed) .evtlog in given folder.
 
     Args:
-        folder_path (str): Path to the folder.
+        folder_path (str): Path to the input folder.
 
     Returns:
-        tuple: Paths to the .bin_file, .binlog_file .evtlog_file (None if not found) and run_name.
+        tuple: Paths to the .bin_file, .binlog_file run name and .evtlog_file (None if not found)
     """
-    bin_file = None
-    metadata_file = None
-    evt_file = None
-    run_name = None
+    bin_file = metadata_file = run_name = evt_file = None
 
     for file in os.listdir(folder_path):
         if file.endswith(".bin") and "_stream" not in file:
@@ -33,10 +31,7 @@ def find_files(folder_path):
         elif file.endswith(".evt") and "_stream" not in file:
             evt_file = os.path.join(folder_path, file)
         
-    return bin_file, metadata_file, evt_file, run_name
-
-
-"-------------------------------------------------------------------------------------------------------"
+    return bin_file, metadata_file, run_name, evt_file 
 
 
 def get_metadata(metadata_file):
@@ -44,7 +39,7 @@ def get_metadata(metadata_file):
     Extracts metadata from .binlog.
 
     Args:
-        metadata_file (str): Path to metadata file (.binlog)
+        metadata_file (str): Path to metadata file (.binlog).
 
     Returns:
         dict: Metadata including channelCoef1, channelCoef2, acquisitionFrequency and acquisitionComment.
@@ -62,9 +57,6 @@ def get_metadata(metadata_file):
     return metadata
 
 
-"-------------------------------------------------------------------------------------------------------"
-
-
 def get_bubbles(bin_file, coef1, coef2, w):
     """
     Extracts bubble entries and exists implementing dual-threasholding strategy.
@@ -73,30 +65,24 @@ def get_bubbles(bin_file, coef1, coef2, w):
         bin_file (str): Path to the binary file (.bin).
         coef1 (float): Channel coefficient 1 (offset).
         coef2 (float): Channel coefficient 2 (scaling factor).
-        w (int): Bubble window for bubble detection
+        w (int): Bubble window for bubble detection.
         
     Returns:
-        tuple: (voltage_data, bubbles) where:
-            -voltage_data (array): Array of voltage values.
-            -bubbles (lst): Tuple list of bubble data (tA0, tA, tA1, tE0, tE, tE1).
+        voltage_data (np.array): Array of voltage values.
+        bubbles (lst): Tuple list of bubble data (tA0, tA, tA1, tE0, tE, tE1).
     """    
-    # Read binary data and apply conversion to voltage
     trans_data = np.memmap(bin_file, dtype=">i2", mode="r")
     voltage_data = trans_data * coef2 + coef1
     
-    # Threasholds for bubble detection
     lower_threashold = coef1
     upper_threashold = 0.20 + coef1 
     bubbles = []
-    in_bubble = False
-    last_lower, tA, tE = None, None, None
+    in_bubble, last_lower, tA, tE = False, None, None, None
 
-    # Detecting bubbles
     for i, voltage in enumerate(voltage_data):
         if not in_bubble:
             if voltage < lower_threashold:
                 last_lower = i
-            # Valid entry
             if last_lower is not None and voltage > upper_threashold:
                 tA = last_lower
                 tA0 = max(0, tA - w)
@@ -105,20 +91,52 @@ def get_bubbles(bin_file, coef1, coef2, w):
         else:
             if voltage < upper_threashold:
                 tE = i
-                # Valid exit
                 if voltage < lower_threashold:
                     tE = i - 1
                     tE0 = min(len(voltage_data) - 1, tE - w)
                     tE1 = min(len(voltage_data) - 1, tE + w)
-                    bubbles.append((tA0, tA, tA1, tE0, tE, tE1))
-                    in_bubble = False
-                    last_lower = None
+                    bubbles.append((int(tA0), int(tA), int(tA1), int(tE0), int(tE), int(tE1)))
+                    in_bubble, last_lower = False, None
 
-    print(f"Bubbles detected: {len(bubbles)}")
     return voltage_data, bubbles
 
-   
-def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None, labels=None, v_in_labels=None, v_out_labels=None):
+
+def get_labels(evt_file):
+    """
+    Extracts bubbles labels and label summary from the evt_file.
+
+    Args:
+        evt_file (str): Path to eventlog file (.evt).
+
+    Returns:
+        bubble_labels (lst): List of tuples containing (Entry, Exit, Veloc, VeloIn, VeloOut).
+    """
+    with open(evt_file, 'rb') as file:
+        content = file.read()
+
+    content_str = content.decode('latin1') 
+    lines = content_str.splitlines()
+    data = [line.split('\t') for line in lines]
+
+    headers = data[0]
+    rows = data[1:]
+
+    df = pd.DataFrame(rows, columns=headers)
+    df = df.replace(",", ".", regex=True) 
+
+    df["Entry"] = df["Entry"].astype(int)
+    df["Exit"] = df["Exit"].astype(int)
+    df["Veloc"] = df["Veloc"].astype(float)
+    df["VeloIn"] = df["VeloIn"].astype(float)
+    df["VeloOut"] = df["VeloOut"].astype(float)
+    
+    valid_bubbles_df = df[df["Veloc"] != -1]
+    bubble_labels = list(valid_bubbles_df[["Entry", "Exit", "VeloIn", "VeloOut"]].itertuples(index=False, name=None))
+
+    return bubble_labels
+
+
+def save_bubbles(voltage_data, bubbles, mode="seperate", run_name=None, bubble_labels=None):
     """
     Save bubbles to a Dataframe and CSV file.
 
@@ -128,64 +146,41 @@ def save_bubbles(voltage_data, bubbles, mode="whole", run_name=None, labels=None
         mode (str): Determines what voltage data to include:
             - "whole": Voltage from tA0 to tE1 (whole bubble)
             - "seperate" Voltage from tA0 to tA1 (entry) and tE0 to tE1 (exit)
-            - "entry": Voltage from tA0 to tA1 (entry)
-            - "exit": Voltage from tE0 to tE1 (exit)
-        run_name (str): Base name of the run
-        labels (bool): If you want labels of the bubbles
-        v_in_labels (str): 
-        v_out_labels
+        run_name (str): Base name of the run (used for saving files).
+        bubble_labels (list of tuples): Ground truth labels as (Entry, Exit, Veloc, VeloIn, VeloOut) for labelin.
 
     Returns:
-        pd.DataFrame: containing bubble details and voltage segments
+        bubble_df (pd.DataFrame): containing bubble details and voltage segments
     """
     bubble_data = []
 
     for idx, (tA0, tA, tA1, tE0, tE, tE1) in enumerate(bubbles):
-        voltage_bubble = voltage_data[tA0:tE1 + 1]
-        voltage_entry = voltage_data[tA0:tA1 + 1]
-        voltage_exit = voltage_data[tE0:tE1 + 1]
+        # Bubble index
+        bubble_info = {"bubble": idx + 1}
 
-        velo_in = -1
-        velo_out= -1
-
-        if labels:
-            if v_in_labels is not None:
-                for t_a, t_e, v_in in v_in_labels:
-                    if t_a <= tE and t_e >= tA:
-                        velo_in = v_in
-                        break
-            if v_out_labels is not None:
-                for t_a, t_e, v_out in v_out_labels:
-                    if t_a <= tE and t_e >= tA:
-                        velo_out = v_out
-                        break                
-
-        bubble_info = {
-            "bubble": idx + 1  
-        }
-        
-        if labels:
+        # Velocity labels 
+        if bubble_labels:
+            velo_in = velo_out = -1
+            for Entry, Exit, VeloIn, VeloOut in bubble_labels:
+                if Entry <= tE and Exit >= tA:  
+                    velo_in = VeloIn
+                    velo_out = VeloOut
+                    break   
             bubble_info["VeloIn"] = velo_in
             bubble_info["VeloOut"] = velo_out
 
+        # Voltage data
         if mode == "whole":
-            bubble_info["voltage_full"] = voltage_bubble.tolist()
+            bubble_info["voltage_full"] = voltage_data[tA0:tE1 + 1].tolist()
         elif mode == "seperate":
-            bubble_info["voltage_entry"] = voltage_entry.tolist()
-            bubble_info["voltage_exit"] = voltage_exit.tolist()
-        elif mode == "entry":
-            bubble_info["voltage_entry"] = voltage_exit.tolist()
-        elif mode == "exit":
-            bubble_info["voltage_exit"] = voltage_exit.tolist()
+            bubble_info["voltage_entry"] = voltage_data[tA0:tA1 + 1].tolist()
+            bubble_info["voltage_exit"] = voltage_data[tE0:tE1 + 1].tolist()
+        
         bubble_data.append(bubble_info)
 
     bubble_df = pd.DataFrame(bubble_data)
-
-
     output_file = f"{run_name}_{mode}.csv"
     bubble_df.to_csv(output_file, index=False, sep=";")
-    print(f"Bubble data saves to {output_file}")
-
     return bubble_df
 
 
@@ -204,127 +199,15 @@ def zip_all_csv_files(zip_filename):
 
     print(f"All CSV files zipped as {zip_filename}")
 
-
-"-------------------------------------------------------------------------------------------------------"
-def get_labels(evt_file):
-    return None
-
-def bubble_labels(evt_file):
-    """
-    Extracts bubble speeds from the evt_file for bubbles
-
-    Args:
-        evt_file (str): Path to eventlog file (.evt)
-
-    Returns:
-        pandas DataFrame with entry time (t_a), exit time (t_e), velocity in (v_a), 
-        velocity out (v_e) for every bubble in chronological order.
-    """
-    def evt_dataframe(evt_file):
-        "Function that puts the .evt file into a dataframe (note: NOT the _stream.evt, but the other one)"
-        with open(evt_file, 'rb') as file:
-            content = file.read()
-
-        # Converts content to string
-        content_str = content.decode('latin1')  # Adjust encoding if necessary
-
-        # Splits the content into lines
-        lines = content_str.splitlines()
-
-        # Splits each line into columns based on tab and makes a DataFrame
-        data = [line.split('\t') for line in lines]
-        df = pd.DataFrame(data[1:], columns=data[0])
-        
-        return df
+def dataloading():
     
-    # Replace commas with periods (as decimals are now seperated with commas)
-    evt_df = evt_dataframe(evt_file)
-    evt_df = evt_df.replace(",", ".", regex=True)
-    evt_df = evt_df.astype(float)
-  
-    return evt_df
-
-
-"-------------------------------------------------------------------------------------------------------"
-
-
-def v_total_labels(evt_file):
-    """
-    Extracts bubble labels (entry and exit velocities) for bubbles that have both v_in and v_out
-
-    Args:
-        evt_file (str): Path to eventlog file (.evt)
-
-    Returns:
-        numpy array containing lists with [t_a, t_e, v_in, v_out] for each 
-        t_a = arrival time (Entry),  t_e = exit time (Exit),
-        v_in = arrival velocity (VeloIn),  v_out = exit velocity (VeloOut)
-
-    """ 
-    evt_df = bubble_labels(evt_file)
-
-    # Only sampling bubbles with VeloIn and VeloOut
-    valid_bubbles = evt_df[(evt_df["VeloOut"]!=-1) & (evt_df["VeloIn"]!=-1)]
-    labels = np.array([valid_bubbles["Entry"], valid_bubbles["Exit"],
-                       valid_bubbles["VeloIn"], valid_bubbles["VeloOut"]])
-    labels = np.transpose(labels)
-
-    return labels
-
-
-def v_out_labels(evt_file):
-    """
-    Extracts bubble labels (exit velocities) for bubbles that have a v_out
-
-    Args:
-        evt_file (str): Path to eventlog file (.evt)
-
-    Returns:
-        numpy array containing lists with [t_a, t_e, v_out] for each 
-        t_a = arrival time (Entry),  t_e = exit time (Exit),
-        v_out = exit velocity (VeloOut)
-
-    """ 
-    evt_df = bubble_labels(evt_file)
-
-    # Only sampling bubbles with VeloOut
-    valid_bubbles = evt_df[(evt_df["VeloOut"]!=-1)]
-    labels = np.array([valid_bubbles["Entry"], valid_bubbles["Exit"], valid_bubbles["VeloOut"]])
-    labels = np.transpose(labels)
-
-    return labels
-
-
-def v_in_labels(evt_file):
-    """
-    Extracts bubble labels (exit velocities) for bubbles that have both v_in
-
-    Args:
-        evt_file (str): Path to eventlog file (.evt)
-
-    Returns:
-        numpy array containing lists with [t_a, t_e, v_in] for each 
-        t_a = arrival time (Entry),  t_e = exit time (Exit),
-        v_in = arrival velocity (VeloIn)
-
-    """ 
-    evt_df = bubble_labels(evt_file)
-
-    # Only sampling bubbles with VeloIn
-    valid_bubbles = evt_df[(evt_df["VeloIn"]!=-1)]
-    labels = np.array([valid_bubbles["Entry"], valid_bubbles["Exit"],
-                       valid_bubbles["VeloIn"]])
-    labels = np.transpose(labels)
-
-    return labels
-
-"--------------------------------------------------------------------------------------------------------"
+    return None
 
 
 if __name__ == "__main__":
     folder_path = input_folder
 
-    bin_file, metadata_file, evt_file, run_name = find_files(folder_path)
+    bin_file, metadata_file, run_name, evt_file = find_files(folder_path)
     if not bin_file or not metadata_file:
         print(".bin or .binlog file not found. Exiting script.")
         sys.exit(1)
@@ -333,17 +216,7 @@ if __name__ == "__main__":
     coef1 = metadata["channelCoef1"]
     coef2 = metadata["channelCoef2"]
 
-    # # !!! IMPORTANT !!! These lines are commented because they read the voltage file and save them as zipped .csv files
-    # # If you do not have the zipped file, run this only once and then comment again. It takes some time and a lot of storage.
-    v_in = v_in_labels(evt_file)
-    v_out = v_out_labels(evt_file)
-    v_tot = v_total_labels(evt_file)
-
+    bubble_labels = get_labels(evt_file)
     voltage_data, bubbles = get_bubbles(bin_file, coef1, coef2, w=2000)
-    bubbles_seperate_df = save_bubbles(voltage_data, bubbles, mode="seperate", run_name=run_name, labels=True, v_in_labels=v_in, v_out_labels=v_out)
+    bubbles_df= save_bubbles(voltage_data, bubbles, mode="seperate", run_name=run_name, bubble_labels=bubble_labels)
     zip_all_csv_files('all_bubbles.zip')
-
-    print("FROM LABEL FILE:")
-    print(f"amount of bubbles with v_in and v_out: {len(v_tot)}")
-    print(f"amount of bubbles with v_in: {len(v_in)}")
-    print(f"amount of bubbles with v_out: {len(v_out)}")
