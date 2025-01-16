@@ -1,20 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from preprocessing import read_seperate_csv_from_zip
+from preprocessing import read_seperate_csv_from_zip, valid_velo_data_cropped
+
 
 
 # Generate a sample signal (sum of two sine waves)
 fs = 20833.3333  # Sampling frequency in kHz
-T = 0.192049 # Duration in milliseconds
-t = torch.linspace(0, T, int(fs*T))  # Time vector
+T = 0.0960000002 # Duration in milliseconds
 
-f1, f2, f3 = 100900, 249008, 370000  # Frequencies of the sine waves
-signal = torch.sin(2 * np.pi * f1/1000 * t) + 0.5 * np.sin(2 * np.pi * f2/1000 * t) +0.25 * np.sin(2* np.pi *f3/1000 * t)
+t = torch.linspace(0, T, int(fs*T))  # Time vector
+print(len(t))
+
+#f1, f2, f3 = 100900, 249008, 370000  # Frequencies of the sine waves
+#signal = torch.sin(2 * np.pi * f1/1000 * t) + 0.5 * np.sin(2 * np.pi * f2/1000 * t) +0.25 * np.sin(2* np.pi *f3/1000 * t)
 
 df = read_seperate_csv_from_zip("all_bubbles.zip")
 
-print(df.head(10))
+#print(df.head(10))
 #signal = df['voltage_exit'][4]
 
 
@@ -27,10 +30,15 @@ def load_and_transform(df):
 
 
 
-def transform_signal(signal, fs):
+def transform_signal(signal, fs, mode='abs'):
     fft_result = torch.fft.fft(signal)
     frequencies = torch.fft.fftfreq(len(fft_result), d=1/fs)
-    return frequencies, fft_result
+    if mode == 'abs':
+        return frequencies, torch.abs(fft_result)
+    elif mode == 'complex':
+        return frequencies, fft_result
+    else:
+        return 'Invalid mode'
 
 def plot_domains(t, signal, frequencies, fft_result):
     # Plot the results
@@ -81,7 +89,6 @@ class FourierModel:
             for i in range(0, len(X_train), batch_size):
                 inputs = X_train[i:i + batch_size]
                 targets = y_train[i:i + batch_size]
-
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
                 loss = self.loss_fn(outputs, targets)
@@ -97,19 +104,47 @@ class FourierModel:
             return self.model(X)
 
 
+length = 2000
+
+X, y = valid_velo_data_cropped(df, 'out', length=length)
+X = torch.Tensor(X)
+y = torch.Tensor(y)
+
+frequencies, X_fourier = transform_signal(X, fs)
+
+
+X_fourier_train = X_fourier[:int(0.7*len(X))]
+X_fourier_test = X_fourier[int(0.7*len(X)):]
+y_train = y[:int(0.7*len(y))]
+y_test = y[int(0.7*len(y)):]
 
 
 
 #signal = bandpass_filter(signal, fs, 0, 500)
-#frequencies, fft_result = transform_signal(signal, fs)
+frequencies, fft_result = transform_signal(X[12], fs)
 
-#model = FourierModel(input_size=len(frequencies), hidden_size=100, output_size=1)
-#model.compile(learning_rate=0.001)
+model = FourierModel(input_size=length, hidden_size=100, output_size=1)
+model.compile(learning_rate=0.001)
 
-#model.train
+model.train(X_fourier_train, y_train, epochs=10, batch_size=10)
 
-#prediciton = model.predict(frequencies)
-#print(prediciton)
-#plot_domains(t, signal, frequencies, fft_result)
+predicitons = model.predict(X_fourier_test)
+
+print(np.abs(y_test - predicitons.squeeze()))
+print(np.abs(y_test - predicitons.squeeze()).shape)
+print(np.abs(y_test - predicitons.squeeze()).dtype)
+print(predicitons.dtype)
+print(y_test.dtype)
+print(predicitons.squeeze().shape)
+print(y_test.shape)
+
+
+
+
+mae = torch.mean(np.abs(y_test - predicitons.squeeze()))
+
+print(mae)
+
+#plot_domains(t, X[12], frequencies, fft_result)
 
 
