@@ -8,9 +8,24 @@ import ast
 
 import dataloading
 
+########################################################
+# TABLE OF CONTENTS
+
+# read_whole_csv_from_zip (not working at the moment, files too large)
+# read_seperate_csv_from_zip
+# scale_time: makes sure all bubble arrays are equal size (! only needed for whole bubbles)
+# frame_waves: crops data so it zooms in on the waves
+# valid_velo_data: returns data and labels with only valid velocities
+# valid_velo_data_cropped: combines frame_waves and valid_velo_data
+# random_flip: duplicates and randomly flips some data
+# random_noise: duplicates and randomly adds noise to some data
+
+
+########################################################
+
 
 #########################################################
-# REMOVE FUNCTIONS IN THIS BLOCK FOR FINAL MODEL
+# REMOVE FUNCTIONS IN THIS BLOCK BELOW FOR FINAL MODEL
 # THESE ARE ONLY FOR PROCESSING THE ZIPPED .CSV FILES
 #########################################################
 
@@ -123,6 +138,231 @@ def scale_time(data, length=None):
     return np.array(scaled_data)
 
 
+def frame_waves(data, mode, length=500):
+    """
+    Function that crops to the waves. Only works for data that is only v_out or v_in signals (mode).
+
+    Args:
+        data: numpy array or list with the voltage data of the bubbles
+        mode: two options; "in" for data of bubble entry or "out" for data of bubble exit. 
+        length: amount of timesteps of the cropped part. Standard value is set at 500.
+
+    Output:
+        Numpy array with the cropped voltages, dimension [#samples, length]
+    """
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
+
+    # if mode is in, grabs the last <length> datapoints
+    if mode == "in":
+        cropped_data = np.array([sample[-length:] for sample in data])
+
+    # if mode is out, grabs the first <length
+    if mode == "out":
+        cropped_data = np.array([sample[:length] for sample in data])
+    
+    return cropped_data
+
+
+def valid_velo_data(data, mode):
+    """
+    Extracts the data with valid velocities. Only works for pandas DataFrames right now.
+
+    Args:
+        data: enter the dataframe with bubble voltages and labels
+        mode: "in" gets all bubbles with a valid VeloIn, "out" with a valid VeloOut, 
+                "or" with either valid VeloIn or VeloOut
+
+    Output:
+        x: Numpy array with voltage data of all valid bubbles. Either only in or out signal.
+        y: Numpy array with labels of all valid bubbles
+    """
+    if mode not in ["in", "out", "or"]:
+        print("Error: choose valid mode. Choose from ['in', 'out', 'or']")
+        return
+    
+    if mode == "in":
+        valid = data[data["VeloIn"] != -1]
+        x = valid["voltage_entry"].tolist()
+        y = valid["VeloIn"].astype(float).tolist()
+
+    if mode == "out":
+        valid = data[data["VeloOut"] != -1]
+        x = valid["voltage_exit"].tolist()
+        y = valid["VeloOut"].astype(float).tolist()
+
+    if mode == "or":
+        x = []
+        y = []
+
+        # first seperating everything that has either/or both VeloIn and VeloOut 
+        valid = data[(data["VeloOut"] != -1) | (data["VeloIn"]!= -1)]
+        
+        # In case there's two velocities, returns the minimum velocity and data
+        for _, row in valid.iterrows():
+            if row["VeloIn"] != -1 and row["VeloOut"] != -1:
+                if row["VeloIn"] < row["VeloOut"]:
+                    x.append(row["voltage_entry"])
+                    y.append(row["VeloIn"])
+                else:
+                    x.append(row["voltage_exit"])
+                    y.append(row["VeloOut"])
+            elif row["VeloIn"] != -1:
+                x.append(row["voltage_entry"])
+                y.append(row["VeloIn"])
+            else:
+                x.append(row["voltage_exit"])
+                y.append(row["VeloOut"])
+        
+
+    
+    return np.array(x), np.array(y)
+
+
+def valid_velo_data_cropped(data, mode, length=500):
+    """
+    Extracts the data with valid velocities and combines it with the frame_waves function. 
+    Only works for pandas DataFrames right now.
+
+    Args:
+        data: enter the dataframe with bubble voltages and labels
+        mode: "in" gets all bubbles with a valid VeloIn, "out" with a valid VeloOut, 
+                "or" with either valid VeloIn or VeloOut
+        length: The amount of timesteps the output will be. Standard value is set at 500.
+
+    Output:
+        x: Numpy array with cropped voltage data of all valid bubbles. Either only in or out signal.
+        y: Numpy array with labels of all valid bubbles
+    """
+    if mode not in ["in", "out", "or"]:
+        print("Error: choose valid mode. Choose from ['in', 'out', 'or']")
+        return
+    
+    if mode == "in":
+        valid = data[data["VeloIn"] != -1]
+        x = frame_waves(valid["voltage_entry"].tolist(), mode, length=length)
+        y = valid["VeloIn"].astype(float).tolist()
+
+    if mode == "out":
+        valid = data[data["VeloOut"] != -1]
+        x = frame_waves(valid["voltage_exit"].tolist(), mode, length=length)
+        y = valid["VeloOut"].astype(float).tolist()
+    
+    if mode == "or":
+        x = []
+        y = []
+        # first seperating everything in 
+        valid = data[(data["VeloOut"] != -1) | (data["VeloIn"]!= -1)]
+        
+        for _, row in valid.iterrows():
+            if row["VeloIn"] != -1 and row["VeloOut"] != -1:
+                if row["VeloIn"] < row["VeloOut"]:
+                    x.append(row["voltage_entry"][-length:])
+                    y.append(row["VeloIn"])
+                else:
+                    x.append(row["voltage_exit"][:length])
+                    y.append(row["VeloOut"])
+            elif row["VeloIn"] != -1:
+                x.append(row["voltage_entry"][-length:])
+                y.append(row["VeloIn"])
+            else:
+                x.append(row["voltage_exit"][:length])
+                y.append(row["VeloOut"])
+        
+
+    return np.array(x), np.array(y)
+
+
+def random_flip(data, labels, chance, random_seed=None):
+    """
+    Randomly duplicates some samples and performs a horizontal flip on them.
+
+    Args:
+        data: 2D Numpy array (or list) with features of the samples
+        labels: 1D Numpy array (or list) with labels per sample
+        chance: fraction of data (between 0 and 1) that will get flipped and duplicated
+        random_seed: optional random seed (integer)
+
+    Output:
+        x: Numpy array with the duplicated/transformed samples appended
+        y: Numpy array with the duplicated labels appended
+    """
+    if not (0. < chance < 1.):
+        raise ValueError("Chance should be between 0 and 1 (inclusive)")
+    if len(data) != len(labels):
+        raise ValueError("data and labels should be the same length")
+
+    if isinstance(data, list):
+        data = np.array(data)
+    if isinstance(labels, list):
+        labels = np.array(labels)
+
+    # set random seed if applicable
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    # amount of images to be flipped:
+    n = int(chance*len(data))
+
+    # creating an array of length n with random numbers 
+    random_list = np.random.randint(0, len(data), n)
+
+    x_new = data
+    y_new = labels
+    for rand in random_list:
+        duplicate = data[rand][::-1]
+        duplicate_label = labels[rand]
+        x_new = np.concatenate([x_new, [duplicate]])
+        y_new = np.append(y_new, duplicate_label)
+
+    return x_new, y_new
+
+
+def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
+    """
+    Duplicates some samples and adds noise to them.
+    
+    Args:
+        data: 2D Numpy array (or list) with features of the samples
+        labels: 1D Numpy array (or list) with labels per sample
+        chance: fraction of data (between 0 and 1) that will get augmented and duplicated
+        noise_level: standard deviation in the noise. Must be non-negative. 
+
+    Output:
+        x: Numpy array with the duplicated/transformed samples appended
+        y: Numpy array with the duplicated labels appended
+    """
+
+    if not (0. < chance < 1.):
+        raise ValueError("Chance should be between 0 and 1 (inclusive)")
+    if len(data) != len(labels):
+        raise ValueError("data and labels should be the same length")
+
+    if isinstance(data, list):
+        data = np.array(data)
+    if isinstance(labels, list):
+        labels = np.array(labels)
+
+    # set random seed if applicable
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    
+    # amount of images to be flipped:
+    n = int(chance*len(data))
+
+    # creating an array of length n with random numbers 
+    random_list = np.random.randint(0, len(data), n)
+
+    x_new = data
+    y_new = labels
+    for rand in random_list:
+        duplicate = data[rand] + np.random.normal(0, noise_level, data[rand].shape)
+        duplicate_label = labels[rand]
+        x_new = np.concatenate([x_new, [duplicate]])
+        y_new = np.append(y_new, duplicate_label)
+
+    return x_new, y_new
+
 
 "----------------------------------------------------------------------------------"
 "Loading the data from dataloading.py (from meta and bin files etc.)"
@@ -150,17 +390,17 @@ def scale_time(data, length=None):
 "----------------------------------------------------------------------------------"
 "Calling the functions using the .csv files"
 
-seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
-print("\n")
-print(seperate_bubbles.head())
+# seperate_bubbles = read_seperate_csv_from_zip("all_bubbles.zip")
+# print("\n")
+# print(seperate_bubbles.head())
 
-voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
-scaled_bubbles = scale_time(voltage_exit_2d, length=None)
-# #lengths = [len(sample) for sample in scaled_bubbles]
+# voltage_exit_2d = np.array(seperate_bubbles["voltage_exit"].tolist())
+# scaled_bubbles = scale_time(voltage_exit_2d, length=None)
+# # #lengths = [len(sample) for sample in scaled_bubbles]
 
-plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
-print(scaled_bubbles[0])
-plt.show()
+# plt.plot(np.arange(len(scaled_bubbles[0])), scaled_bubbles[0])
+# print(scaled_bubbles[0])
+# plt.show()
 
 
 ## Whole bubbles: takes too long to load from CSV file. Loading from dataloading.py is more efficient.
