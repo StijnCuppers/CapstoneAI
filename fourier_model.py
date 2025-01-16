@@ -1,27 +1,36 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
-import numpy as np
-import matplotlib.pyplot as plt
-
+import torch
+from preprocessing import read_seperate_csv_from_zip
 
 
 # Generate a sample signal (sum of two sine waves)
 fs = 20833.3333  # Sampling frequency in kHz
-T = 0.240048004  # Duration in milliseconds
-t = np.linspace(0, T, int(fs*T), endpoint=True)  # Time vector
+T = 0.192049 # Duration in milliseconds
+t = torch.linspace(0, T, int(fs*T))  # Time vector
 
-print(len(t))
-f1, f2, f3 = 1009000, 2490088, 3700000  # Frequencies of the sine waves
-signal = np.sin(2 * np.pi * f1/1000 * t) + 0.5 * np.sin(2 * np.pi * f2/1000 * t) +0.25 * np.sin(2* np.pi *f3/1000 * t)
+f1, f2, f3 = 100900, 249008, 370000  # Frequencies of the sine waves
+signal = torch.sin(2 * np.pi * f1/1000 * t) + 0.5 * np.sin(2 * np.pi * f2/1000 * t) +0.25 * np.sin(2* np.pi *f3/1000 * t)
 
+df = read_seperate_csv_from_zip("all_bubbles.zip")
 
-fs = 20833.3  # Sampling frequency in kHz
-fft_result = np.fft.fft(signal)
-frequencies = np.fft.fftfreq(len(fft_result), d=1/fs)
-
+print(df.head(10))
+#signal = df['voltage_exit'][4]
 
 
+def load_and_transform(df):
+    signal = df['voltage_exit'][4]
+    fs = 20833.3333  # Sampling frequency in kHz
+    fft_result = np.fft.fft(signal)
+    frequencies = np.fft.fftfreq(len(fft_result), d=1/fs)
+    return frequencies, fft_result
+
+
+
+def transform_signal(signal, fs):
+    fft_result = torch.fft.fft(signal)
+    frequencies = torch.fft.fftfreq(len(fft_result), d=1/fs)
+    return frequencies, fft_result
 
 def plot_domains(t, signal, frequencies, fft_result):
     # Plot the results
@@ -36,7 +45,7 @@ def plot_domains(t, signal, frequencies, fft_result):
 
     # Frequency-domain signal
     plt.subplot(2, 1, 2)
-    plt.plot(frequencies[:len(frequencies)//2], np.abs(fft_result)[:len(frequencies)//2])
+    plt.plot(frequencies[1:len(frequencies)//2], np.abs(fft_result)[1:len(frequencies)//2])
     plt.title("Frequency-Domain Signal")
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Magnitude")
@@ -44,4 +53,63 @@ def plot_domains(t, signal, frequencies, fft_result):
     plt.tight_layout()
     plt.show()
 
-plot_domains(t, signal, frequencies, fft_result)
+def bandpass_filter(signal, fs, f_low, f_high):
+    fft_result = np.fft.fft(signal)
+    frequencies = np.fft.fftfreq(len(fft_result), d=1/fs)
+    fft_result[(frequencies < f_low)] = 0
+    fft_result[(frequencies > f_high)] = 0
+    return np.fft.ifft(fft_result)
+
+
+class FourierModel:
+    def __init__(self, input_size, hidden_size, output_size):
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(input_size, hidden_size),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_size, output_size)
+        )
+        self.loss_fn = torch.nn.MSELoss()
+        self.optimizer = None
+
+    def compile(self, learning_rate):
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+
+    def train(self, X_train, y_train, epochs, batch_size):
+        self.model.train()
+        for epoch in range(epochs):
+            epoch_loss = 0
+            for i in range(0, len(X_train), batch_size):
+                inputs = X_train[i:i + batch_size]
+                targets = y_train[i:i + batch_size]
+
+                self.optimizer.zero_grad()
+                outputs = self.model(inputs)
+                loss = self.loss_fn(outputs, targets)
+                loss.backward()
+                self.optimizer.step()
+
+                epoch_loss += loss.item()
+            print(f'Epoch {epoch + 1}/{epochs}, Loss: {epoch_loss / len(X_train)}')
+
+    def predict(self, X):
+        self.model.eval()
+        with torch.no_grad():
+            return self.model(X)
+
+
+
+
+
+#signal = bandpass_filter(signal, fs, 0, 500)
+#frequencies, fft_result = transform_signal(signal, fs)
+
+#model = FourierModel(input_size=len(frequencies), hidden_size=100, output_size=1)
+#model.compile(learning_rate=0.001)
+
+#model.train
+
+#prediciton = model.predict(frequencies)
+#print(prediciton)
+#plot_domains(t, signal, frequencies, fft_result)
+
+
