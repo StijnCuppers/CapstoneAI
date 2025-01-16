@@ -19,6 +19,11 @@ import dataloading
 # valid_velo_data_cropped: combines frame_waves and valid_velo_data
 # random_flip: duplicates and randomly flips some data
 # random_noise: duplicates and randomly adds noise to some data
+# bin_data: bins all y labels as data (does not regard X data) > part of flatten_data_distribution
+# calculate_duplication_factors: calculates how to scale data in bins > part of flatten_data_distribution
+# duplicate_and_augment_data: duplicates and augments data based on bin frequency > part of flatten_data_distribution
+# flatten_data_distribution > flattens the data distribution according to bin sizes, by augmenting and duplicating data
+
 
 
 ########################################################
@@ -318,7 +323,7 @@ def random_flip(data, labels, chance, random_seed=None):
     return x_new, y_new
 
 
-def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
+def random_noise(data, labels, chance, noise_level=0.005, random_seed=None):
     """
     Duplicates some samples and adds noise to them.
     
@@ -363,6 +368,99 @@ def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
 
     return x_new, y_new
 
+
+def bin_data(y, bins):
+    """
+    Makes bins based on y data (velocities)
+
+    Args: 
+        y: numpy array with labels
+        bins: number of bins
+
+    Output:
+        hist: array that contains counts of datapoints in each bin.
+        bin_indices: array that indicates which bin each data point in y belongs to.
+    
+    """
+    hist, bin_edges = np.histogram(y, bins=bins)
+    bin_indices = np.digitize(y, bin_edges[:-1])
+    return hist, bin_indices
+
+
+def calculate_duplication_factors(hist, scale_factor=0.5):
+    """
+    Calculates the factors that each bin should be duplicated with. Less frequent bins will get duplicated more.
+
+    Args:
+        hist: array with samples per bin
+        scale_factor: determines how much the distribution will be flattened. 
+                        1=almost completely flat, 0=no flattening
+
+    Output:
+        array with the factors per bin
+        
+    """
+    max_freq = np.max(hist)
+    factors = np.zeros_like(hist, dtype=float)
+    # preventing division by 0
+    non_zero_indices = hist > 0
+
+    # scaling factor so less frequent data does not get fully duplicated 10 times.
+    factors[non_zero_indices] = (max_freq / hist[non_zero_indices]) * scale_factor
+    # No duplication for the most frequent bin
+    factors[hist == max_freq] = 1 
+
+    return factors
+
+
+def duplicate_and_augment_data(X, y, bin_indices, factors, noise=0.005):
+    """
+    Duplicates/augments the data per bin, scaled with the size of each bin 
+    (smaller bin -> more duplication)
+
+    Args:
+        X: X data
+        y: y data
+        bin_indices: array with which datapoints correspond to which bins (from bin_data)
+
+    Output:
+        augmented_X: lengthened and partly augmented X data
+        augmented_y: lenghthened y data of the augmented_X data
+    
+    """
+    augmented_X = X.copy()
+    augmented_y = y.copy()
+    for i, (x_value, y_value) in enumerate(zip(X, y)):
+        bin_idx = bin_indices[i] - 1
+        factor = factors[bin_idx]
+        for _ in range(int(factor) - 1):
+            if np.random.rand() < 0.5:
+                x_new, y_new = random_noise([x_value], [y_value], chance=1, noise_level=noise)
+            else:
+                x_new, y_new = random_flip([x_value], [y_value], chance=1)
+            augmented_X = np.concatenate([augmented_X, x_new])
+            augmented_y = np.concatenate([augmented_y, y_new])
+    return augmented_X, augmented_y
+
+
+def flatten_data_distribution(X, y, bins, scaling_factor=0.5, noise=0.005):
+    """
+    Combines the functions to flatten the distribution (by augmenting data).
+    
+    Args:
+        X: X data
+        y: y data
+        bins: amount of bins
+        scaling_factor: factor that prevents data from becoming all bins becoming the most frequent
+
+    Output:
+        augmented_X: lengthened and partly augmented X data
+        augmented_y: lenghthened y data of the augmented_X data
+    """
+    hist, bin_indices = bin_data(y, bins)
+    factors = calculate_duplication_factors(hist, scale_factor=scaling_factor)
+    augmented_X, augmented_y = duplicate_and_augment_data(X, y, bin_indices, factors, noise=noise)
+    return augmented_X, augmented_y
 
 "----------------------------------------------------------------------------------"
 "Loading the data from dataloading.py (from meta and bin files etc.)"
