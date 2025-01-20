@@ -105,6 +105,7 @@ class FourierModel:
 
 
 length = 2000
+length = 500
 
 X, y = valid_velo_data_cropped(df, 'out', length=length)
 X = torch.Tensor(X)
@@ -112,6 +113,10 @@ y = torch.Tensor(y)
 
 frequencies, X_fourier = transform_signal(X, fs)
 
+X_fourier = X_fourier[:,:length]
+print(X_fourier.shape)
+
+X_inv_fourier = torch.fft.ifft(X_fourier, 1)
 
 X_fourier_train = X_fourier[:int(0.7*len(X))]
 X_fourier_test = X_fourier[int(0.7*len(X)):]
@@ -121,16 +126,16 @@ y_test = y[int(0.7*len(y)):]
 
 
 #signal = bandpass_filter(signal, fs, 0, 500)
-frequencies, fft_result = transform_signal(X[12], fs)
+#frequencies, fft_result = transform_signal(X[12], fs)
 
 model = FourierModel(input_size=length, hidden_size=100, output_size=1)
 model.compile(learning_rate=0.001)
 
-model.train(X_fourier_train, y_train, epochs=10, batch_size=10)
+model.train(X_fourier_train, y_train, epochs=1500, batch_size=10)
 
 predicitons = model.predict(X_fourier_test)
 
-print(np.abs(y_test - predicitons.squeeze()))
+#print(np.abs(y_test - predicitons.squeeze()))
 print(np.abs(y_test - predicitons.squeeze()).shape)
 print(np.abs(y_test - predicitons.squeeze()).dtype)
 print(predicitons.dtype)
@@ -144,7 +149,11 @@ print(y_test.shape)
 mae = torch.mean(np.abs(y_test - predicitons.squeeze()))
 
 print(mae)
+print("MAE :", mae)
 
-#plot_domains(t, X[12], frequencies, fft_result)
+print(predicitons.squeeze()[:10])
+print(y_test[:10])
+
+#plot_domains(t, X_inv_fourier[0], frequencies, X_fourier[0])
 
 
