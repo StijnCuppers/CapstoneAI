@@ -367,7 +367,7 @@ def zip_all_csv_files(main_folder):
     print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
 
 #THIS FUNCTION IS FOR BATCH LABELING OF DATASETS
-#def process_main_folder(main_folder_path, plot=False, labels=False):
+def process_main_folder(main_folder_path, plot=False, labels=False):
     """
     Processes all subfolders in a main folder, saves individual CSVs, and combines all data.
 
