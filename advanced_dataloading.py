@@ -346,7 +346,28 @@ def process_folder(folder_path, plot, labels):
     return save_bubbles_df
 
 
-def process_main_folder(main_folder_path, plot=False, labels=False):
+def zip_all_csv_files(main_folder):
+    """
+    Zip all CSV files in the main folder and its subfolders into a single ZIP file,
+    but include them all as if in a single flat directory.
+
+    Args:
+        main_folder (str): Path to the main folder containing subfolders with CSV files.
+    """
+    zip_path = os.path.join(main_folder, "All_bubbles.zip")
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(main_folder):  
+            for file in files:
+                if file.endswith('.csv'):
+                    full_path = os.path.join(root, file)  
+                    arcname = os.path.basename(file)  
+                    zipf.write(full_path, arcname=arcname) 
+                    print(f"Added {full_path} to {zip_path} as {arcname}")
+
+    print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
+
+#THIS FUNCTION IS FOR BATCH LABELING OF DATASETS
+#def process_main_folder(main_folder_path, plot=False, labels=False):
     """
     Processes all subfolders in a main folder, saves individual CSVs, and combines all data.
 
@@ -386,31 +407,10 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
     else:
         print("No valid data found to combine.")
         return pd.DataFrame()
-
-
-def zip_all_csv_files(main_folder):
-    """
-    Zip all CSV files in the main folder and its subfolders into a single ZIP file,
-    but include them all as if in a single flat directory.
-
-    Args:
-        main_folder (str): Path to the main folder containing subfolders with CSV files.
-    """
-    zip_path = os.path.join(main_folder, "All_bubbles.zip")
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(main_folder):  
-            for file in files:
-                if file.endswith('.csv'):
-                    full_path = os.path.join(root, file)  
-                    arcname = os.path.basename(file)  
-                    zipf.write(full_path, arcname=arcname) 
-                    print(f"Added {full_path} to {zip_path} as {arcname}")
-
-    print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
-
+#CURRENTLY NOT IN USE
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\new"
+    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles\bubble_data2"
     big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
     print("Processing complete.")
 
