@@ -126,3 +126,23 @@ def get_results(input_folder_path, model_folder_path, jump=900,
         plt.show()
     
     return combined_df
+
+def load_scalers():
+    with open(r'scalers\feature_scaler.pkl', 'rb') as feature_file:
+        feature_scaler = pickle.load(feature_file)
+    with open(r'scalers\target_scaler.pkl', 'rb') as target_file:
+        target_scaler = pickle.load(target_file)
+    
+    return feature_scaler, target_scaler
+
+def load_models():
+    GRU1 = GRUModel(1, 20, num_layers=2)
+    GRU1.load_state_dict(torch.load(r'final_model_files\GRU_lr0.01_H20_norm2_nlayer2.h5', map_location=torch.device('cpu')))
+
+    LSTM = torch.load(r"final_model_files\full_LSTM_lr0.008_H30_norm3_nlayer2.h5", map_location=torch.device('cpu'))
+
+
+    GRU2 = GRUModel(1, 20, num_layers=2)
+    GRU2.load_state_dict(torch.load(r"final_model_files\GRU_lr0.02_H20_norm3_nlayer2.h5", map_location=torch.device('cpu')))
+
+    return GRU1, GRU2, LSTM
