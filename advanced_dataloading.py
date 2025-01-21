@@ -24,6 +24,7 @@ import zipfile
 # Main Execution: Process the main folder with all subfolders, generate combined CSV, and ZIP file.
 ########################################################
 
+
 def find_files(folder_path):
     """
     Find relevant files paths and the run name in given folder
@@ -359,7 +360,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
         big_bubbles_data = pd.concat(combined_data, ignore_index=True)
 
         # Save the combined DataFrame to the main folder
-        output_file = os.path.join(main_folder_path, "BIG_BUBBLES_DATA.csv")
+        output_file = os.path.join(main_folder_path, "Combined_bubbles.csv")
         big_bubbles_data.to_csv(output_file, index=False, sep=";")
         print(f"Combined data saved to {output_file}")
 
@@ -371,19 +372,21 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
 
 def zip_all_csv_files(main_folder):
     """
-    Zip all CSV files in the main folder and its subfolders into a single ZIP file.
+    Zip all CSV files in the main folder and its subfolders into a single ZIP file,
+    but include them all as if in a single flat directory.
 
     Args:
         main_folder (str): Path to the main folder containing subfolders with CSV files.
     """
-    zip_path = os.path.join(main_folder + "\All_bubbles.zip")
+    zip_path = os.path.join(main_folder, "All_bubbles.zip")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(main_folder): 
+        for root, _, files in os.walk(main_folder):  
             for file in files:
                 if file.endswith('.csv'):
                     full_path = os.path.join(root, file)  
-                    zipf.write(full_path, arcname=os.path.relpath(full_path, main_folder)) 
-                    print(f"Added {full_path} to {zip_path}")
+                    arcname = os.path.basename(file)  
+                    zipf.write(full_path, arcname=arcname) 
+                    print(f"Added {full_path} to {zip_path} as {arcname}")
 
     print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
 

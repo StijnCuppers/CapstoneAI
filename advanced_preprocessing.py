@@ -30,33 +30,37 @@ import dataloading
 # REMOVE FUNCTIONS IN THIS BLOCK BELOW FOR FINAL MODEL
 # THESE ARE ONLY FOR PROCESSING THE ZIPPED .CSV FILES
 #########################################################
-def read_seperate_csv_from_zip(zip_filename):
+
+main_folder = R"C:\Users\TUDelft\Desktop\NEW_DATA"
+
+def read_seperate_csv_from_zip(main_folder):
     """
-    Read CSV files ending with '_seperate.csv' from a ZIP file.
+    Read all CSV files from the ZIP file located in the main folder.
 
     Args:
-        zip_filename (str): Name of the ZIP file
+        main_folder (str): Path to the main folder containing the ZIP file.
 
     Returns:
-        list of pd.DataFrame: List of DataFrames containing the data from the CSV files
+        pd.DataFrame: A single concatenated DataFrame containing data from all CSV files in the ZIP.
     """
-    
-    with zipfile.ZipFile(zip_filename, 'r') as zipf:
-        print(f"Opened ZIP file: {zip_filename}")
+    zip_filepath = os.path.join(main_folder, "All_bubbles.zip")  
+
+    with zipfile.ZipFile(zip_filepath, 'r') as zipf:
+        print(f"Opened ZIP file: {zip_filepath}")
         for file in zipf.namelist():
-            print(f"Found file in ZIP: {file}")
-            if file.endswith('All_bubbles.zip'):
+            if file.endswith('Combined_bubbles.csv'): 
                 print(f"Reading file: {file}")
                 with zipf.open(file) as csvfile:
                     df = pd.read_csv(csvfile, header=0, delimiter=";")
-                    print(f"Read {file} from {zip_filename}")
-    
-    # converting the col with voltages (now seen as str) to lists
-    for col in ["VoltageOut"]:
-        df[col] = df[col].apply(ast.literal_eval)
-    
+
+                # Convert the VoltageOut column to lists
+                if "VoltageOut" in df.columns:
+                    df["VoltageOut"] = df["VoltageOut"].apply(ast.literal_eval)
+                    
     return df
 
+df = read_seperate_csv_from_zip(main_folder)
+print(df.head())
 
 ##################################################
 # END OF BLOCK
@@ -77,17 +81,10 @@ def scale_time(data, length=None):
 
     Returns:
         Numpy array with dimension [samples, datapoints] with <length> datapoints.
-    """
-    # if type(data) != type(np.zeros(3)):
-    #     data = np.array(data)
-    
+    """    
     if length is None:
         length = max([len(sample) for sample in data]) + 10
         print(f"No sample length was given, so length was automatically fixed at {length}")
-
-    # if data.ndim != 2:
-    #     raise ValueError("Data should be a 2D numpy array with dimensions [samples, datapoints]. (Hint: try to add .tolist() to input)")
-    
     scaled_data = []
     
     for sample in data:
