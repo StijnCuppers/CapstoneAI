@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-from preprocessing import read_seperate_csv_from_zip, valid_velo_data_cropped
+from advanced_preprocessing import read_seperate_csv_from_zip, valid_velo_data_cropped
 
 
 
@@ -87,7 +87,7 @@ class FourierModel:
 
 
 length = 2000
-length = 500
+#length = 500
 
 X, y = valid_velo_data_cropped(df, 'out', length=length)
 X = torch.Tensor(X)

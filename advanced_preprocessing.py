@@ -162,6 +162,6 @@ def valid_velo_data_cropped(data, length=500, n_crops=1):
     return np.array(x), np.array(y)
 
 
-filename = '/kaggle/input/bubbles-1/2024-11-12T145426_seperate.csv'
-data = read_seperate_csv_from_zip(filename)
-print("Data loaded")
+#filename = '/kaggle/input/bubbles-1/2024-11-12T145426_seperate.csv'
+#data = read_seperate_csv_from_zip(filename)
+#print("Data loaded")
