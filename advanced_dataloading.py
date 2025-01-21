@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -63,13 +64,21 @@ def get_binlogdata(binlog_file):
     tree = ET.parse(binlog_file)
     root = tree.getroot()
 
+    acquisition_comment = root.attrib.get('acquisitionComment', '')
+    flow_rate_match = re.search(r'(\d+)\s*[lL][/-]?[mM]in', acquisition_comment)
+    if flow_rate_match:
+        flow_rate = int(flow_rate_match.group(1)) 
+    else:
+        flow_rate = -1 
+
     binlogdata = {
         "channelCoef1": float(root.find(".//channel").attrib['channelCoef1']),
         "channelCoef2": float(root.find(".//channel").attrib['channelCoef2']),
         "acquisitionFrequency": float(root.attrib['acquisitionFrequency']),
-        "acquisitionComment": (root.attrib['acquisitionComment']),
+        "flowRate": flow_rate, 
         "bin_file": root.find(".//channel").attrib['channelOutputFile']    
     }
+
     print("Binlog data extracted")
     return binlogdata
 
@@ -210,7 +219,7 @@ def plot_bubble_detection(voltage_data, tE, tE1, tE0, n, folder_path, run_name):
     plt.close()
 
 
-def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
+def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flow_rate, frequency):
     """
     Saves extracted bubble data to a Pandas DataFrame and identifies missing labels.
 
@@ -218,9 +227,11 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
         extracted_bubbles (list): A list of bubbles, where each bubble is [Bidx, tE, VoltageOut].
         run_name (str, optional): Name of the run for file naming. Defaults to None.
         bubble_labels (list, optional): List of labels where each label is [Lidx, ExitIdx, VeloOut]. Defaults to None.
+        flow_rate (int): Flow rate of measurement in L/min.
+        frequency (float): Frequency of the measurement.
 
     Returns:
-        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut].
+        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut, flowRate, Frequency].
     """
     rows = []
     if bubble_labels:
@@ -252,7 +263,9 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
             "E_idx": E_idx,
             "L_idx": L_idx,
             "VeloOut": VeloOut,
-            "VoltageOut": VoltageOut
+            "VoltageOut": VoltageOut,
+            "FlowRate": flow_rate,  
+            "Frequency": frequency
         })
 
     # Identify missing labels
@@ -316,6 +329,10 @@ def process_folder(folder_path, plot, labels):
     binlogdata = get_binlogdata(binlog_file)
     coef1 = binlogdata["channelCoef1"]
     coef2 = binlogdata["channelCoef2"]
+    flowRate = binlogdata["flowRate"]
+    acquisitionFrequency = ["acquisitionFrequency"]
+
+    print(binlogdata)
 
     extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot, folder_path, run_name)
 
@@ -324,7 +341,7 @@ def process_folder(folder_path, plot, labels):
     else:
        bubble_labels = None 
 
-    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels)
+    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flowRate, acquisitionFrequency)
     return save_bubbles_df
 
 
@@ -392,9 +409,9 @@ def zip_all_csv_files(main_folder):
 
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\NEW_DATA"
-    big_bubbles_df = process_main_folder(main_folder_path, plot=True, labels=True)
-    zip_all_csv_files(main_folder_path)
+    main_folder_path = R"C:\Users\TUDelft\Desktop\new"
+    big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
+    #zip_all_csv_files(main_folder_path)
     print("Processing complete.")
 
 
