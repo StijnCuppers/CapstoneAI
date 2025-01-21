@@ -5,40 +5,22 @@ from preprocessing import read_seperate_csv_from_zip, valid_velo_data_cropped
 
 
 
-# Generate a sample signal (sum of two sine waves)
+# Inititialize the time vector
 fs = 20833.3333  # Sampling frequency in kHz
-T = 0.0960000002 # Duration in milliseconds
+n = 4000 # Number of time-steps in the signal
+T = n/fs # Total time duration
 
-t = torch.linspace(0, T, int(fs*T))  # Time vector
-print(len(t))
+t = torch.linspace(0, T, n)  # Time vector
 
-#f1, f2, f3 = 100900, 249008, 370000  # Frequencies of the sine waves
-#signal = torch.sin(2 * np.pi * f1/1000 * t) + 0.5 * np.sin(2 * np.pi * f2/1000 * t) +0.25 * np.sin(2* np.pi *f3/1000 * t)
+# Read the data
+df = read_seperate_csv_from_zip("All_bubbles_2.zip")
 
-df = read_seperate_csv_from_zip("all_bubbles.zip")
+# Define Helper Functions
 
-#print(df.head(10))
-#signal = df['voltage_exit'][4]
-
-
-def load_and_transform(df):
-    signal = df['voltage_exit'][4]
-    fs = 20833.3333  # Sampling frequency in kHz
-    fft_result = np.fft.fft(signal)
-    frequencies = np.fft.fftfreq(len(fft_result), d=1/fs)
-    return frequencies, fft_result
-
-
-
-def transform_signal(signal, fs, mode='abs'):
+def transform_signal(signal, fs):
     fft_result = torch.fft.fft(signal)
     frequencies = torch.fft.fftfreq(len(fft_result), d=1/fs)
-    if mode == 'abs':
-        return frequencies, torch.abs(fft_result)
-    elif mode == 'complex':
-        return frequencies, fft_result
-    else:
-        return 'Invalid mode'
+    return frequencies, torch.abs(fft_result)
 
 def plot_domains(t, signal, frequencies, fft_result):
     # Plot the results

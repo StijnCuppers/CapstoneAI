@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -23,6 +24,7 @@ import zipfile
 # zip_all_csv_files: Zip all CSV files in the main folder and its subfolders into a single ZIP file.
 # Main Execution: Process the main folder with all subfolders, generate combined CSV, and ZIP file.
 ########################################################
+
 
 def find_files(folder_path):
     """
@@ -62,13 +64,21 @@ def get_binlogdata(binlog_file):
     tree = ET.parse(binlog_file)
     root = tree.getroot()
 
+    acquisition_comment = root.attrib.get('acquisitionComment', '')
+    flow_rate_match = re.search(r'(\d+)\s*[lL][/-]?[mM]in', acquisition_comment)
+    if flow_rate_match:
+        flow_rate = int(flow_rate_match.group(1)) 
+    else:
+        flow_rate = -1 
+
     binlogdata = {
         "channelCoef1": float(root.find(".//channel").attrib['channelCoef1']),
         "channelCoef2": float(root.find(".//channel").attrib['channelCoef2']),
         "acquisitionFrequency": float(root.attrib['acquisitionFrequency']),
-        "acquisitionComment": (root.attrib['acquisitionComment']),
+        "flowRate": flow_rate, 
         "bin_file": root.find(".//channel").attrib['channelOutputFile']    
     }
+
     print("Binlog data extracted")
     return binlogdata
 
@@ -209,7 +219,7 @@ def plot_bubble_detection(voltage_data, tE, tE1, tE0, n, folder_path, run_name):
     plt.close()
 
 
-def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
+def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flow_rate, frequency):
     """
     Saves extracted bubble data to a Pandas DataFrame and identifies missing labels.
 
@@ -217,9 +227,11 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
         extracted_bubbles (list): A list of bubbles, where each bubble is [Bidx, tE, VoltageOut].
         run_name (str, optional): Name of the run for file naming. Defaults to None.
         bubble_labels (list, optional): List of labels where each label is [Lidx, ExitIdx, VeloOut]. Defaults to None.
+        flow_rate (int): Flow rate of measurement in L/min.
+        frequency (float): Frequency of the measurement.
 
     Returns:
-        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut].
+        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut, flowRate, Frequency].
     """
     rows = []
     if bubble_labels:
@@ -251,7 +263,9 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
             "E_idx": E_idx,
             "L_idx": L_idx,
             "VeloOut": VeloOut,
-            "VoltageOut": VoltageOut
+            "VoltageOut": VoltageOut,
+            "FlowRate": flow_rate,  
+            "Frequency": frequency
         })
 
     # Identify missing labels
@@ -315,6 +329,10 @@ def process_folder(folder_path, plot, labels):
     binlogdata = get_binlogdata(binlog_file)
     coef1 = binlogdata["channelCoef1"]
     coef2 = binlogdata["channelCoef2"]
+    flowRate = binlogdata["flowRate"]
+    acquisitionFrequency = ["acquisitionFrequency"]
+
+    print(binlogdata)
 
     extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot, folder_path, run_name)
 
@@ -323,7 +341,7 @@ def process_folder(folder_path, plot, labels):
     else:
        bubble_labels = None 
 
-    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels)
+    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flowRate, acquisitionFrequency)
     return save_bubbles_df
 
 
@@ -359,7 +377,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
         big_bubbles_data = pd.concat(combined_data, ignore_index=True)
 
         # Save the combined DataFrame to the main folder
-        output_file = os.path.join(main_folder_path, "BIG_BUBBLES_DATA.csv")
+        output_file = os.path.join(main_folder_path, "Combined_bubbles.csv")
         big_bubbles_data.to_csv(output_file, index=False, sep=";")
         print(f"Combined data saved to {output_file}")
 
@@ -371,27 +389,29 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
 
 def zip_all_csv_files(main_folder):
     """
-    Zip all CSV files in the main folder and its subfolders into a single ZIP file.
+    Zip all CSV files in the main folder and its subfolders into a single ZIP file,
+    but include them all as if in a single flat directory.
 
     Args:
         main_folder (str): Path to the main folder containing subfolders with CSV files.
     """
-    zip_path = os.path.join(main_folder + "\All_bubbles.zip")
+    zip_path = os.path.join(main_folder, "All_bubbles.zip")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(main_folder): 
+        for root, _, files in os.walk(main_folder):  
             for file in files:
                 if file.endswith('.csv'):
                     full_path = os.path.join(root, file)  
-                    zipf.write(full_path, arcname=os.path.relpath(full_path, main_folder)) 
-                    print(f"Added {full_path} to {zip_path}")
+                    arcname = os.path.basename(file)  
+                    zipf.write(full_path, arcname=arcname) 
+                    print(f"Added {full_path} to {zip_path} as {arcname}")
 
     print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
 
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\NEW_DATA"
-    big_bubbles_df = process_main_folder(main_folder_path, plot=True, labels=True)
-    zip_all_csv_files(main_folder_path)
+    main_folder_path = R"C:\Users\TUDelft\Desktop\new"
+    big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
+    #zip_all_csv_files(main_folder_path)
     print("Processing complete.")
 
 
