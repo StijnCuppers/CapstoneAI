@@ -6,6 +6,23 @@ import xml.etree.ElementTree as ET
 from scipy.signal import find_peaks
 import zipfile
 
+########################################################
+# TABLE OF CONTENTS
+
+# find_files: Locate and extract file paths for `.bin`, `.binlog`, and `.evt` files from a folder.
+# get_binlogdata: Parse `.binlog` files to extract metadata such as coefficients, frequency, and comments.
+# get_labels: Extract bubble labels from `.evt` files with valid velocities (`VeloOut != -1`).
+# get_bubbles_advanced: Extract bubble entries and exits using a dual-thresholding strategy. 
+#                       Includes downsampling, smoothing, gradient computation, and peak detection. 
+#                       Optionally plots results and saves the plot.
+# plot_bubble_detection: Visualize voltage data, detected peaks, and entry/exit points. 
+#                        Saves the plot in the specified folder.
+# save_bubbles: Save extracted bubble data into a CSV file. Match bubble data with labels and identify missing labels.
+# process_folder: Process a single folder containing bubble run data and generate a CSV.
+# process_main_folder: Process all subfolders in a main folder. Combine data from all folders into a single CSV file.
+# zip_all_csv_files: Zip all CSV files in the main folder and its subfolders into a single ZIP file.
+# Main Execution: Process the main folder with all subfolders, generate combined CSV, and ZIP file.
+########################################################
 
 def find_files(folder_path):
     """
