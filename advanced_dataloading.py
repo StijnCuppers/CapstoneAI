@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xml.etree.ElementTree as ET
 from scipy.signal import find_peaks
+import zipfile
 
 
 def find_files(folder_path):
@@ -88,7 +89,7 @@ def get_labels(evt_file):
             extracted_bubbles.append(["L" + str(valid_idx), exit_value, veloout_value])
             valid_idx += 1 
 
-    print(f"{len(extracted_bubbles)} bubble labels with VeloOut != -1 extracted.")
+    print(f"LABELS: {len(extracted_bubbles)} bubble labels with VeloOut != -1 extracted.")
     return extracted_bubbles
 
 
@@ -270,7 +271,7 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
             for label in missing_labels:
                 print(f"L_idx: {label[0]}, ExitIdx: {label[1]}, VeloOut: {label[2]}")
         else:
-            print("\nNo missing labels.")
+            print("No missing labels.")
 
     # Count and print bubbles with VeloOut != -1
     valid_bubbles = saved_bubbles[saved_bubbles["VeloOut"] != -1]
@@ -280,7 +281,7 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
     return saved_bubbles
 
 
-def load_folder(folder_path, plot, labels):
+def process_folder(folder_path, plot, labels):
     """
     Processes a single folder containing bubble run data.
 
@@ -298,7 +299,7 @@ def load_folder(folder_path, plot, labels):
     coef1 = binlogdata["channelCoef1"]
     coef2 = binlogdata["channelCoef2"]
 
-    extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot)
+    extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot, folder_path, run_name)
 
     if labels:
         bubble_labels = get_labels(evt_file)
@@ -331,7 +332,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
             print(f"Processing folder: {subfolder_path}")
             try:
                 # Process the subfolder and save its DataFrame
-                df = load_folder(subfolder_path, plot=plot, labels=labels)
+                df = process_folder(subfolder_path, plot=plot, labels=labels)
                 combined_data.append(df)
             except Exception as e:
                 print(f"Error processing folder {subfolder_path}: {e}")
@@ -349,11 +350,31 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
     else:
         print("No valid data found to combine.")
         return pd.DataFrame()
-    
+
+
+def zip_all_csv_files(main_folder):
+    """
+    Zip all CSV files in the main folder and its subfolders into a single ZIP file.
+
+    Args:
+        main_folder (str): Path to the main folder containing subfolders with CSV files.
+    """
+    zip_path = os.path.join(main_folder + "\All_bubbles.zip")
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(main_folder): 
+            for file in files:
+                if file.endswith('.csv'):
+                    full_path = os.path.join(root, file)  
+                    zipf.write(full_path, arcname=os.path.relpath(full_path, main_folder)) 
+                    print(f"Added {full_path} to {zip_path}")
+
+    print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
+
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles"
-    big_bubbles_df = process_main_folder(main_folder_path, plot=False, labels=True)
+    main_folder_path = R"C:\Users\TUDelft\Desktop\NEW_DATA"
+    big_bubbles_df = process_main_folder(main_folder_path, plot=True, labels=True)
+    zip_all_csv_files(main_folder_path)
     print("Processing complete.")
 
 
