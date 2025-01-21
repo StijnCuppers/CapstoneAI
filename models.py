@@ -93,7 +93,6 @@ def get_results(input_folder_path, model_folder_path, jump=900,
     model_3.eval()
     X_test = loaded_feature_scaler.transform(X_test)
     X_test = torch.tensor(X_test[...,np.newaxis], dtype=torch.float32)
-    y_test = torch.tensor(y_test, dtype=torch.float32)
     model_1.to(device)
     model_2.to(device)
     model_3.to(device)
@@ -121,12 +120,7 @@ def get_results(input_folder_path, model_folder_path, jump=900,
     if plot_hist:
         # Plotting a histogram
         predictions = combined_df["final prediction"].tolist()
-        y_test = combined_df["true value"].tolist()
-        min_value = min(min(predictions), min(y_test))
-        max_value = max(max(predictions), max(y_test))
-        bins = np.linspace(min_value, max_value, n_bins)
-        plt.hist(predictions, bins=bins, alpha=0.5, edgecolor="black", label="prediction")
-        plt.hist(y_test, bins=bins, alpha=0.5, edgecolor="black", label="ground truth")
+        plt.hist(predictions, bins=n_bins, alpha=0.5, edgecolor="black", label="prediction")
         plt.xlabel("velocity")
         plt.legend()
         plt.show()
