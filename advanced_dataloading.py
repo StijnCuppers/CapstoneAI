@@ -59,7 +59,7 @@ def get_binlogdata(binlog_file):
         binlog_file (str): Path to binlog file (.binlog).
 
     Returns:
-        dict: Metadata including channelCoef1, channelCoef2, acquisitionFrequency and acquisitionComment.
+        dict: Metadata including channelCoef1, channelCoef2, flowRate and acquisitionComment.
     """
     tree = ET.parse(binlog_file)
     root = tree.getroot()
@@ -288,9 +288,9 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flow_r
 
     # Save the DataFrame to a file in the specified folder
     if run_name:
-        file_name = os.path.join(folder_path, f"{run_name}_bubbles.csv")
+        file_name = os.path.join(folder_path, f"{flow_rate}_{run_name}_bubbles.csv")
     else:
-        file_name = os.path.join(folder_path, "bubbles.csv")
+        file_name = os.path.join(folder_path, f"{flow_rate}_bubbles.csv")
     
     saved_bubbles.to_csv(file_name, index=False, sep=";")
     print(f"Saved bubbles to {file_name}")
@@ -342,6 +342,7 @@ def process_folder(folder_path, plot, labels):
        bubble_labels = None 
 
     save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flowRate, acquisitionFrequency)
+    zip_all_csv_files(folder_path)
     return save_bubbles_df
 
 
@@ -411,7 +412,6 @@ def zip_all_csv_files(main_folder):
 if __name__ == "__main__":
     main_folder_path = R"C:\Users\TUDelft\Desktop\new"
     big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
-    #zip_all_csv_files(main_folder_path)
     print("Processing complete.")
 
 
