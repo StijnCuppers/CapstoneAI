@@ -409,7 +409,7 @@ def zip_all_csv_files(main_folder):
 
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\new"
+    main_folder_path = R"C:\Users\slcup\Documents\Aerospace Engineering\Minor\Capstone\Capstone data\Advanced_data"
     big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
     #zip_all_csv_files(main_folder_path)
     print("Processing complete.")
