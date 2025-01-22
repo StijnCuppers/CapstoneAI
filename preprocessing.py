@@ -541,3 +541,5 @@ def flatten_data_distribution(X, y, bins, scaling_factor=0.5, noise=0.005):
 # whole_scaled_bubbles = scale_time(voltage_whole_2d, length=None)
 # plt.plot(np.arange(len(whole_scaled_bubbles[0])), whole_scaled_bubbles[0])
 # plt.show()
+import os
+print("Current working directory:", os.getcwd())

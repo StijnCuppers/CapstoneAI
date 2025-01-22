@@ -6,6 +6,7 @@ import torch
 
 import dataloading
 import preprocessing
+from sklearn.preprocessing import StandardScaler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -129,11 +130,14 @@ def get_results(input_folder_path, model_folder_path, jump=900,
 
 def load_scalers():
     with open(r'scalers\feature_scaler.pkl', 'rb') as feature_file:
-        feature_scaler = pickle.load(feature_file)
+        feature_scaler1 = pickle.load(feature_file)
     with open(r'scalers\target_scaler.pkl', 'rb') as target_file:
-        target_scaler = pickle.load(target_file)
-    
-    return feature_scaler, target_scaler
+        target_scaler1 = pickle.load(target_file)
+    with open(r'scalers\feature_scaler2.pkl', 'rb') as feature_file:
+        feature_scaler2 = pickle.load(feature_file)
+    with open(r'scalers\target_scaler2.pkl', 'rb') as target_file:
+        target_scaler2 = pickle.load(target_file)
+    return feature_scaler1, target_scaler1, feature_scaler2, target_scaler2
 
 def load_models():
     GRU1 = GRUModel(1, 20, num_layers=2)
@@ -146,3 +150,4 @@ def load_models():
     GRU2.load_state_dict(torch.load(r"final_model_files\GRU_lr0.02_H20_norm3_nlayer2.h5", map_location=torch.device('cpu')))
 
     return GRU1, GRU2, LSTM
+

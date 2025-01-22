@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import zipfile
 import ast
+import pickle
 
 
 ########################################################
@@ -347,3 +348,27 @@ def flatten_data_distribution(X, y, bins, scaling_factor=0.5, noise=0.005):
 #filename = '/kaggle/input/bubbles-1/2024-11-12T145426_seperate.csv'
 #data = read_seperate_csv_from_zip(filename)
 #print("Data loaded")
+
+def save_second_scaler(data):
+    feature_scaler = StandardScaler()
+    target_scaler = StandardScaler()
+    X, y = valid_velo_data(data)
+    
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, train_size=0.75, random_state=0)
+    X_train_val, y_train_val = frame_waves(X_train_val, length=250, n_crops=2, jump=0, labels=y_train_val)
+    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, train_size=0.67, random_state=0)
+    X_train = feature_scaler.fit_transform(X_train)
+    y_train = target_scaler.fit_transform(y_train.reshape(-1, 1)).flatten()
+    return feature_scaler, target_scaler
+
+data = read_seperate_csv_from_zip('All_bubbles.zip')
+feature_scaler, target_scaler = save_second_scaler(data)
+with open('feature_scaler.pkl', 'wb') as file:
+    pickle.dump(feature_scaler, file)
+
+# Target scaler
+with open('target_scaler.pkl', 'wb') as file:
+    pickle.dump(target_scaler, file)
+
+
+    
