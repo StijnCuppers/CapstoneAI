@@ -24,8 +24,8 @@ for file_path in path_to_zips:
     df = process_folder(file_path, plot=True, labels=True)
     X_gru1 = frame_waves(df['VoltageOut'], length=150, jump=900)[0]
     X_gru1_scaled = torch.tensor(feature_scaler.transform(X_gru1)[...,np.newaxis], dtype=torch.float32)   
-    X_gru2 = frame_waves(df['VoltageOut'], length=250, jump=0)[0]
-    X_gru2_scaled = torch.tensor(feature_scaler2.transform(X_gru2)[...,np.newaxis], dtype=torch.float32)
+    X_gru2 = frame_waves(df['VoltageOut'], length=150, jump=900)[0]
+    X_gru2_scaled = torch.tensor(feature_scaler.transform(X_gru2)[...,np.newaxis], dtype=torch.float32)
     X_lstm = frame_waves(df['VoltageOut'], length=150, jump=900)[0]
     X_lstm_scaled = torch.tensor(feature_scaler.transform(X_lstm)[...,np.newaxis], dtype=torch.float32)
 
@@ -35,7 +35,7 @@ for file_path in path_to_zips:
         y_gru2_scaled = gru2(X_gru2_scaled)
         y_lstm_scaled = lstm(X_lstm_scaled)
     y_gru1 = target_scaler.inverse_transform(y_gru1_scaled.detach().cpu().numpy().reshape(-1, 1)).flatten()
-    y_gru2 = target_scaler2.inverse_transform(y_gru2_scaled.detach().cpu().numpy().reshape(-1, 1)).flatten()
+    y_gru2 = target_scaler.inverse_transform(y_gru2_scaled.detach().cpu().numpy().reshape(-1, 1)).flatten()
     y_lstm = target_scaler.inverse_transform(y_lstm_scaled.detach().cpu().numpy().reshape(-1, 1)).flatten()
 
     y_pred = ((y_lstm+y_gru1+y_gru2)/3).flatten()
