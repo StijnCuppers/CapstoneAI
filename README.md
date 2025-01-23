@@ -1,15 +1,47 @@
 # Capstone project
-This repository is a submission to the TI3150TU Capstone AI project of the TU Delft for the project: Enhanced Bubble Characterization from Optical Fiber Probe Data. The aim of this project is to utilize AI framworks for the analysis of bubble flow in bubble column reactors, utilizing a fiber probe. Mainly our models are able to 
+This repository is a submission to the TI3150TU Capstone AI project of the TU Delft for the project: Enhanced Bubble Characterization from Optical Fiber Probe Data. The aim of this project is to utilize AI framworks for the analysis of bubble flow in bubble column reactors, utilizing a fiber probe. Mainly our models are used to handle the given bubble data to seperate the bubbles and, if the .evtlog file is given, add the corresponding labels. After the preprocessing, 3 trained models will give the predictions of the speeds of the bubbles. The predictions of the 3 models will be averaged and the average speed of the 3 will be the final prediction.  
 
 
 ## Installation
 
-Use the package manager [pip]() to install ....
 
-```bashs
+The following libraries are required for this project:
 
-pip install ...
-```
+These libraries are included with Python by default:
+- `os` — File and directory management.
+- `re` — Regular expressions for string matching.
+- `sys` — System-specific parameters and functions.
+- `pickle` — Object serialization.
+- `zipfile` — Handling ZIP archives.
+- `random` — Generating random numbers.
+- `xml.etree.ElementTree` — Parsing and creating XML data.
+
+---
+
+These libraries are used for handling, analyzing, and manipulating data:
+- `numpy` — Numerical computations and array processing.
+- `pandas` — Data manipulation and analysis.
+
+---
+
+- `scikit-learn` — Provides tools for data preprocessing, model selection, and evaluation:
+  - `train_test_split`
+  - `KFold`
+  - `StandardScaler`
+
+---
+
+- `torch` — PyTorch library for building and training neural networks.
+- `torch.nn` — For creating neural network layers.
+- `torch.optim` — Optimization algorithms.
+
+---
+- `scipy.signal` — Tools for signal processing, specifically:
+  - `find_peaks` — For identifying peaks in signal data.
+
+---
+
+- `matplotlib` — Plotting and visualizing data.
 
 ## Usage
 To use our code you should clone the repository.
