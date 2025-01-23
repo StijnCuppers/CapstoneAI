@@ -98,9 +98,8 @@ def frame_waves(data, length=500, labels=None, n_crops=1, jump=0):
         length: amount of timesteps of the cropped part. Standard value is set at 500.
         n_crops: can be 1 or 2. For 1, makes one zoomed-in sample per bubble.
                 For 2, picks two parts of the wave signal (so final output doubles in size)
-        jump: Recommended value is an integer between 0-500 (for small lengths). 
-                Gives the amount of steps away from the frame edge 
-                (to obtain clearer waves, at the cost of possibly overshooting the bubble time frame)
+        jump: Gives the amount of steps away from the frame edge 
+            (low values obtain clearer waves, at the cost of possibly overshooting the bubble time frame)
 
     Output:
         cropped_data: Numpy array with the cropped voltages, dimension [#samples, length]
@@ -113,12 +112,13 @@ def frame_waves(data, length=500, labels=None, n_crops=1, jump=0):
     
     if not isinstance(data, np.ndarray):
         data = np.array(data)
-
+    
+    # for VeloOut, grabs the last few <length> datapoints (with a margin of 100 datapoints)
     if n_crops == 1:
-        cropped_data = np.array([sample[jump:(jump+length)] for sample in data])
+        cropped_data = np.array([sample[-(jump+100+length):-(jump+100)] for sample in data])
     if n_crops == 2:
-        cropped_data = np.array([sample[jump:(jump+length)] for sample in data])
-        cropped_data2 = np.array([sample[(jump+length//2):(jump+length + length//2)] for sample in data])
+        cropped_data = np.array([sample[-(jump+100+length):-(jump+100)] for sample in data])
+        cropped_data2 = np.array([sample[-(100+jump+length+length//2):-(100+jump+length//2)] for sample in data])
         cropped_data = np.concatenate([cropped_data, cropped_data2])
         labels = np.concatenate([labels, labels])
     
