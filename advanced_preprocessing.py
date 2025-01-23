@@ -361,6 +361,7 @@ def save_second_scaler(data):
     y_train = target_scaler.fit_transform(y_train.reshape(-1, 1)).flatten()
     return feature_scaler, target_scaler
 
+'''
 data = read_seperate_csv_from_zip('All_bubbles.zip')
 feature_scaler, target_scaler = save_second_scaler(data)
 with open('feature_scaler.pkl', 'wb') as file:
@@ -369,6 +370,7 @@ with open('feature_scaler.pkl', 'wb') as file:
 # Target scaler
 with open('target_scaler.pkl', 'wb') as file:
     pickle.dump(target_scaler, file)
+'''
 
 
     

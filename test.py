@@ -1,20 +1,19 @@
 ### Start user input ###
-path_to_zips = [r'all_bubbles_old.zip']
+path_to_zips = [r'C:\Users\slcup\Documents\Aerospace Engineering\Minor\Capstone\Capstone data\Data']
 ### End user input ###
-seed = 0
 
 # Libary imports
 import pandas as pd
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+device = 'cpu'
+from sklearn.model_selection import train_test_split
 
 # Function imports
 from advanced_dataloading import process_folder
-from preprocessing import frame_waves, valid_velo_data, valid_velo_data_cropped, read_seperate_csv_from_zip
-from models import load_scalers, load_models
-from models import LSTMModel
-from sklearn.model_selection import train_test_split
+from advanced_preprocessing import frame_waves, valid_velo_data
+from models import load_scalers, load_models, LSTMModel, GRUModel
 
 # Load the models and scalers
 gru1, gru2, lstm = load_models()
@@ -24,20 +23,13 @@ feature_scaler, target_scaler, feature_scaler2, target_scaler2 = load_scalers()
 # Loop over all zips
 for file_path in path_to_zips:
     # Load and preprocess the input
-    df = read_seperate_csv_from_zip(file_path)
-    X, y = valid_velo_data(df, 'out')
-    '''
-    tot_samples = len(df)
-    samples_with_v = len(X)
-    X_gru1 = frame_waves(X, length=150, jump=900)[0]
+    df = process_folder(file_path, plot=True, labels=True)
+    X_gru1 = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
     X_gru1_scaled = torch.tensor(feature_scaler.transform(X_gru1)[...,np.newaxis], dtype=torch.float32)   
-    X_gru2 = frame_waves(X, length=150, jump=900)[0]
+    X_gru2 = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
     X_gru2_scaled = torch.tensor(feature_scaler.transform(X_gru2)[...,np.newaxis], dtype=torch.float32)
-    X_lstm = frame_waves(X, length=150, jump=900)[0]
+    X_lstm = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
     X_lstm_scaled = torch.tensor(feature_scaler.transform(X_lstm)[...,np.newaxis], dtype=torch.float32)
-
-    
-    print(f'{samples_with_v} out of {tot_samples} samples have valid velocity data')
 
     # Make predictions
     with torch.no_grad():  
@@ -54,13 +46,46 @@ for file_path in path_to_zips:
     outcome_df['Standard deviation %'] = outcome_df['Standard deviation'] / outcome_df['model prediction'] * 100
  
 print(outcome_df.head(10))
-'''
-# Evaluation metrics
-device = 'cpu'
-X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, train_size=0.75, random_state=seed)
-X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, train_size=0.67, random_state=seed)
-X_test1, y_test1 = frame_waves(X_test, "out", labels=y_test, n_crops=1, length=150, jump=900)
 
+# Evaluation metrics
+#valid_bubbles = len(outcome_df[outcome_df['Standard deviation %'] < 10])/len(outcome_df) * 100
+#print(f'Percentage of valid bubbles: {valid_bubbles}%')
+
+def test_eval(X_test, y_test, model, feature_scaler, target_scaler, n_bins=10, plot_hist=True):
+    
+    model.eval()
+    X_test = feature_scaler.transform(X_test)
+    X_test = torch.tensor(X_test[...,np.newaxis], dtype=torch.float32).to(device)
+    y_test = torch.tensor(y_test, dtype=torch.float32).to(device)
+    model.to(device)
+
+    with torch.no_grad():
+        predictions = model(X_test)
+    # Returning to original scale
+    predictions = target_scaler.inverse_transform(predictions.detach().cpu().numpy().reshape(-1, 1)).flatten()
+    # Getting y_test to the cpu
+    y_test = y_test.detach().cpu().numpy()
+    mae = torch.mean(torch.abs(torch.tensor(predictions, dtype=torch.float32) - y_test))
+    print(f"Test Set Mean Absolute Error: {mae.item():.4f}")
+    print(f"Test set Mean: {np.mean(y_test)}")
+    print(f"Average deviation: {mae.item() / np.mean(y_test) * 100}%")
+
+    if plot_hist:
+        # Plotting a histogram
+        min_value = min(predictions.min().item(), y_test.min().item())
+        max_value = max(predictions.max().item(), y_test.max().item())
+        bins = np.linspace(min_value, max_value, n_bins)
+        plt.hist(predictions.flatten(), bins=bins, alpha=0.5, edgecolor="black", label="prediction")
+        plt.hist(y_test, bins=bins, alpha=0.5, edgecolor="black", label="ground truth")
+        plt.xlabel("velocity")
+        plt.legend()
+        plt.show()
+
+    predictions = predictions.flatten()
+    y_test = y_test.flatten()
+    return pd.DataFrame({"predictions": predictions, 
+                         "true value": y_test,
+                        "deviation (%)": np.abs(y_test - predictions)/predictions * 100 })
 
 def avg_results_test(model_1, model_2, model_3, X_test, y_test, feature_scaler, target_scaler, 
                 plot_hist=False, n_bins=20):
@@ -127,46 +152,14 @@ def avg_results_test(model_1, model_2, model_3, X_test, y_test, feature_scaler, 
     
     return final_df
 
-def test_eval(X_test, y_test, model, feature_scaler, target_scaler, n_bins=10, plot_hist=True):
-    
-    model.eval()
-    X_test = feature_scaler.transform(X_test)
-    X_test = torch.tensor(X_test[...,np.newaxis], dtype=torch.float32).to(device)
-    y_test = torch.tensor(y_test, dtype=torch.float32).to(device)
-    model.to(device)
+X, y = valid_velo_data(df)
+X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, train_size=0.75, random_state=0)
 
-    with torch.no_grad():
-        predictions = model(X_test)
-    # Returning to original scale
-    predictions = target_scaler.inverse_transform(predictions.detach().cpu().numpy().reshape(-1, 1)).flatten()
-    # Getting y_test to the cpu
-    y_test = y_test.detach().cpu().numpy()
-    mae = torch.mean(torch.abs(torch.tensor(predictions, dtype=torch.float32) - y_test))
-    print(f"Test Set Mean Absolute Error: {mae.item():.4f}")
-    print(f"Test set Mean: {np.mean(y_test)}")
-    print(f"Average deviation: {mae.item() / np.mean(y_test) * 100}%")
-
-    if plot_hist:
-        # Plotting a histogram
-        min_value = min(predictions.min().item(), y_test.min().item())
-        max_value = max(predictions.max().item(), y_test.max().item())
-        bins = np.linspace(min_value, max_value, n_bins)
-        plt.hist(predictions.flatten(), bins=bins, alpha=0.5, edgecolor="black", label="prediction")
-        plt.hist(y_test, bins=bins, alpha=0.5, edgecolor="black", label="ground truth")
-        plt.xlabel("velocity")
-        plt.legend()
-        plt.show()
-
-    predictions = predictions.flatten()
-    y_test = y_test.flatten()
-    return pd.DataFrame({"predictions": predictions, 
-                         "true value": y_test,
-                        "deviation (%)": np.abs(y_test - predictions)/predictions * 100 })
-
+X_train_val, y_train_val = frame_waves(X_train_val, length=150, n_crops=2, jump=0, labels=y_train_val)
+X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, train_size=0.67, random_state=0)
+X_test1, y_test1 = frame_waves(X_test, labels=y_test, n_crops=1, length=150, jump=0)
 results = avg_results_test(gru1, lstm, gru2, 
                       X_test1, y_test1, feature_scaler, target_scaler, plot_hist=True)
-
-
 valid_test_results = results[(results["standard deviation"]/results["final prediction"]) <= 0.1]
 print("Percentage found bubbles (<10% deviation from truth): ", len(valid_test_results) / (len(results)) * 100, "%")
 
