@@ -1,9 +1,29 @@
 import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import xml.etree.ElementTree as ET
 from scipy.signal import find_peaks
+import zipfile
+
+########################################################
+# TABLE OF CONTENTS
+
+# find_files: Locate and extract file paths for `.bin`, `.binlog`, and `.evt` files from a folder.
+# get_binlogdata: Parse `.binlog` files to extract metadata such as coefficients, frequency, and comments.
+# get_labels: Extract bubble labels from `.evt` files with valid velocities (`VeloOut != -1`).
+# get_bubbles_advanced: Extract bubble entries and exits using a dual-thresholding strategy. 
+#                       Includes downsampling, smoothing, gradient computation, and peak detection. 
+#                       Optionally plots results and saves the plot.
+# plot_bubble_detection: Visualize voltage data, detected peaks, and entry/exit points. 
+#                        Saves the plot in the specified folder.
+# save_bubbles: Save extracted bubble data into a CSV file. Match bubble data with labels and identify missing labels.
+# process_folder: Process a single folder containing bubble run data and generate a CSV.
+# process_main_folder: Process all subfolders in a main folder. Combine data from all folders into a single CSV file.
+# zip_all_csv_files: Zip all CSV files in the main folder and its subfolders into a single ZIP file.
+# Main Execution: Process the main folder with all subfolders, generate combined CSV, and ZIP file.
+########################################################
 
 
 def find_files(folder_path):
@@ -39,32 +59,39 @@ def get_binlogdata(binlog_file):
         binlog_file (str): Path to binlog file (.binlog).
 
     Returns:
-        dict: Metadata including channelCoef1, channelCoef2, acquisitionFrequency and acquisitionComment.
+        dict: Metadata including channelCoef1, channelCoef2, flowRate and acquisitionComment.
     """
     tree = ET.parse(binlog_file)
     root = tree.getroot()
+
+    acquisition_comment = root.attrib.get('acquisitionComment', '')
+    flow_rate_match = re.search(r'(\d+)\s*[lL][/-]?[mM]in', acquisition_comment)
+    if flow_rate_match:
+        flow_rate = int(flow_rate_match.group(1)) 
+    else:
+        flow_rate = -1 
 
     binlogdata = {
         "channelCoef1": float(root.find(".//channel").attrib['channelCoef1']),
         "channelCoef2": float(root.find(".//channel").attrib['channelCoef2']),
         "acquisitionFrequency": float(root.attrib['acquisitionFrequency']),
-        "acquisitionComment": (root.attrib['acquisitionComment']),
+        "flowRate": flow_rate, 
         "bin_file": root.find(".//channel").attrib['channelOutputFile']    
     }
+
     print("Binlog data extracted")
     return binlogdata
 
 
 def get_labels(evt_file):
     """
-    Extracts bubbles labels with VeloOut != -1 from the evt_file.
+    Extracts bubble labels with VeloOut != -1 from the evt_file.
 
     Args:
         evt_file (str): Path to eventlog file (.evt).
 
     Returns:
-        extracted_bubbles (list): List of tuples containing (Index, Exit, VeloOut) 
-                                  where VeloOut != -1.
+        extracted_bubbles (list): List of tuples containing (L_idx, Exit, VeloOut) where VeloOut != -1.
     """
     with open(evt_file, 'rb') as file:
         content = file.read()
@@ -77,28 +104,37 @@ def get_labels(evt_file):
     veloout_idx = headers.index("VeloOut")
 
     extracted_bubbles = []
-    for idx, row in enumerate(rows):
+    valid_idx = 0  
+
+    for row in rows:
         # Extract and process Exit and VeloOut fields
         exit_value = int(row[exit_idx])
         veloout_value = float(row[veloout_idx].replace(",", "."))
         
         # Include only labels where VeloOut != -1
         if veloout_value != -1:
-            extracted_bubbles.append(["L" + str(idx), exit_value, veloout_value])
+            extracted_bubbles.append(["L" + str(valid_idx), exit_value, veloout_value])
+            valid_idx += 1 
 
-    print(f"{len(extracted_bubbles)} bubble labels with VeloOut != -1 extracted.")
+    print(f"LABELS: {len(extracted_bubbles)} bubble labels with VeloOut != -1 extracted.")
     return extracted_bubbles
 
 
-def get_bubbles_advanced(bin_file, coef1, coef2, plot=False):
+def get_bubbles_advanced(bin_file, coef1, coef2, plot=False, folder_path=None, run_name=None):
     """
-    Extracts bubble entries and exists implementing dual-thresholding strategy.
-    
+    Extracts bubble entries and exits implementing dual-thresholding strategy.
+
     Args:
         bin_file (str): Path to the binary file (.bin).
         coef1 (float): Channel coefficient 1 (offset).
         coef2 (float): Channel coefficient 2 (scaling factor).
-    """ 
+        plot (bool): Whether to plot the results. Defaults to False.
+        folder_path (str, optional): Path to the folder where the plot will be saved. Required if plot=True.
+        run_name (str, optional): Name of the run for naming the plot file. Required if plot=True.
+    
+    Returns:
+        list: Extracted bubble data.
+    """
     trans_data = np.memmap(bin_file, dtype=">i2", mode="r")
     voltage_data = (trans_data.astype(np.float32) * coef2 + coef1)
     print(f"{len(voltage_data)} datapoints extracted")
@@ -107,7 +143,7 @@ def get_bubbles_advanced(bin_file, coef1, coef2, plot=False):
     voltage_data_downsampled = voltage_data[::downsample_factor]
 
     # Apply moving average for additional smoothing
-    window_size = 100  # Size of the moving average window
+    window_size = 100 
     kernel = np.ones(window_size) / window_size
     smoothed_voltage_data = np.convolve(voltage_data_downsampled, kernel, mode='valid')
     smoothed_voltage_data = np.concatenate((np.full(window_size - 1, smoothed_voltage_data[0]), smoothed_voltage_data))
@@ -116,89 +152,93 @@ def get_bubbles_advanced(bin_file, coef1, coef2, plot=False):
     gradient = np.gradient(smoothed_voltage_data)
 
     # Detect peaks in the negative gradient
-    peaks, _ = find_peaks(-gradient, prominence=0.005, distance=1000)  # Adjusted prominence and distance
+    peaks, _ = find_peaks(-gradient, prominence=0.005, distance=1000) 
 
-    # Map `tE` (original peaks) to original indices
     tE = peaks * downsample_factor
-
-    # Calculate `tE1` (shift `tE` by 1000 to the left)
     tE1 = tE - 1000
-    tE1 = tE1[tE1 >= 0]  # Ensure no negative indices
+    tE1 = tE1[tE1 >= 0] 
 
-    # Calculate `tE0` (shift `tE1` by 4000 to the left)
-    tE0 = tE1 - 4001
-    tE0 = tE0[tE0 >= 0]  # Ensure no negative indices
+    tE0 = tE1 - 4000
+    tE0 = tE0[tE0 >= 0] 
 
-    # Construct the output list
     bubbles = []
     for idx, (start, end, peak) in enumerate(zip(tE0, tE1, tE)):
-        # Ensure the indices are valid and within bounds
         if start >= 0 and end < len(voltage_data):
-            voltage_out = voltage_data[start:end].tolist()  # Extract voltage values between tE0 and tE1
-            bubbles.append(["E"+str(idx), start, end, peak, voltage_out])
+            voltage_out = voltage_data[start:end].tolist() 
+            bubbles.append(["E"+str(idx), peak, voltage_out])
 
-    # Call the external plotting function
+    # Plot if requested
     if plot:
-        plot_bubble_detection(voltage_data, tE, tE1, tE0, n=5000000)
+        if folder_path is None or run_name is None:
+            raise ValueError("Both `folder_path` and `run_name` must be provided when plot=True.")
+        plot_bubble_detection(voltage_data, tE, tE1, tE0, n=5000000, folder_path=folder_path, run_name=run_name)
+
     return bubbles
 
 
-def plot_bubble_detection(voltage_data, tE, tE1, tE0, n):
+def plot_bubble_detection(voltage_data, tE, tE1, tE0, n, folder_path, run_name):
     """
-    Plots the results of the voltage data and all detected peaks.
+    Plots the results of the voltage data and all detected peaks, saves the plot, and allows code execution to continue.
 
     Args:
         voltage_data (ndarray): Original voltage data.
         tE (ndarray): Detected peaks in original indices.
-        tE1 (ndarray): Peaks shifted 1000 indices to the left.
-        tE0 (ndarray): Peaks shifted 4000 indices to the left of `tE1`.
+        tE1 (ndarray): Entry indices.
+        tE0 (ndarray): Exit indices.
         n (int): Number of points to plot from the original voltage data.
+        folder_path (str): Path to the folder where the plot should be saved.
+        run_name (str): Name of the current run to use for naming the plot file.
     """
+    # Create the plot
     plt.figure(figsize=(15, 7))
-
-    # Plot the first `n` points of the original voltage data
     plt.plot(np.arange(len(voltage_data[:n])), voltage_data[:n], label="Original Voltage Data", color="blue", alpha=0.3)
 
-    # Plot `tE` (original peaks)
+    # Plot tE, tE1, and tE0 within the first `n` points
     valid_tE = tE[tE < n]
     plt.scatter(valid_tE, voltage_data[valid_tE], color="red", label="Detected Peaks (tE)", marker="x", s=50)
 
-    # Plot `tE1` (shifted by 1000)
     valid_tE1 = tE1[tE1 < n]
-    plt.scatter(valid_tE1, voltage_data[valid_tE1], color="orange", label="Shifted Peaks (tE1)", marker="o", s=50)
+    plt.scatter(valid_tE1, voltage_data[valid_tE1], color="purple", label="Exit (tE1)", marker="o", s=50)
 
-    # Plot `tE0` (shifted by 4000 from `tE1`)
     valid_tE0 = tE0[tE0 < n]
-    plt.scatter(valid_tE0, voltage_data[valid_tE0], color="green", label="Further Shifted Peaks (tE0)", marker="^", s=50)
+    plt.scatter(valid_tE0, voltage_data[valid_tE0], color="pink", label="Entry (tE0)", marker="o", s=50)
 
     # Labels and title
     plt.title("Voltage Data with Detected Peaks and Shifts")
     plt.xlabel("Sample Index")
     plt.ylabel("Voltage")
     plt.legend()
-    plt.show()
+
+    # Save the plot to the folder
+    plot_file_name = f"{run_name}_bubbles_plot.png"
+    plot_file_path = os.path.join(folder_path, plot_file_name)
+    plt.savefig(plot_file_path, dpi=300)
+    print(f"Plot saved to {plot_file_path}")
+
+    # Close the plot to free memory and allow the code to continue
+    plt.close()
 
 
-def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
+def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flow_rate, frequency):
     """
     Saves extracted bubble data to a Pandas DataFrame and identifies missing labels.
 
     Args:
-        extracted_bubbles (list): A list of bubbles, where each bubble is 
-                                  [Bidx, tE0, tE1, tE, VoltageOut].
+        extracted_bubbles (list): A list of bubbles, where each bubble is [Bidx, tE, VoltageOut].
         run_name (str, optional): Name of the run for file naming. Defaults to None.
-        bubble_labels (list, optional): List of labels where each label is 
-                                        [Lidx, ExitIdx, VeloOut]. Defaults to None.
+        bubble_labels (list, optional): List of labels where each label is [Lidx, ExitIdx, VeloOut]. Defaults to None.
+        flow_rate (int): Flow rate of measurement in L/min.
+        frequency (float): Frequency of the measurement.
 
     Returns:
-        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut].
+        pd.DataFrame: A DataFrame containing [bubble_idx, B_idx, L_idx, VeloOut, VoltageOut, flowRate, Frequency].
     """
-    # Initialize the list for DataFrame rows
     rows = []
-    missing_labels = []  # To store labels that do not match any bubble
+    if bubble_labels:
+        missing_labels = [] 
 
     # Iterate through each bubble in the extracted bubbles
-    for bubble_idx, (E_idx, _, _, tE, VoltageOut) in enumerate(extracted_bubbles):
+    for bubble_idx, (E_idx, tE, VoltageOut) in enumerate(extracted_bubbles):
         if bubble_labels:
             # Check if any label's ExitIdx is within the bubble's range
             matched_label = None
@@ -212,7 +252,7 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
             if matched_label:
                 L_idx, VeloOut = matched_label
             else:
-                L_idx, VeloOut = -1, -1  # No label matches
+                L_idx, VeloOut = -1, -1 
         else:
             # No labels provided
             L_idx, VeloOut = -1, -1
@@ -223,7 +263,9 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
             "E_idx": E_idx,
             "L_idx": L_idx,
             "VeloOut": VeloOut,
-            "VoltageOut": VoltageOut
+            "VoltageOut": VoltageOut,
+            "FlowRate": flow_rate,  
+            "Frequency": frequency
         })
 
     # Identify missing labels
@@ -231,7 +273,7 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
         for label in bubble_labels:
             L_idx, Exit_idx, VeloOut = label
             found = False
-            for _, _, _, tE, _ in extracted_bubbles:
+            for _, tE, _ in extracted_bubbles:
                 if tE - 1000 <= Exit_idx <= tE + 1000:
                     found = True
                     break
@@ -246,20 +288,21 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
 
     # Save the DataFrame to a file in the specified folder
     if run_name:
-        file_name = os.path.join(folder_path, f"{run_name}_bubbles.csv")
+        file_name = os.path.join(folder_path, f"{flow_rate}_{run_name}_bubbles.csv")
     else:
-        file_name = os.path.join(folder_path, "bubbles.csv")
+        file_name = os.path.join(folder_path, f"{flow_rate}_bubbles.csv")
     
     saved_bubbles.to_csv(file_name, index=False, sep=";")
     print(f"Saved bubbles to {file_name}")
 
-    # Print missing labels
-    if missing_labels:
-        print("\nMissing Labels:")
-        for label in missing_labels:
-            print(f"L_idx: {label[0]}, ExitIdx: {label[1]}, VeloOut: {label[2]}")
-    else:
-        print("\nNo missing labels.")
+    if bubble_labels: 
+        # Print missing labels
+        if missing_labels:
+            print("\nMissing Labels:")
+            for label in missing_labels:
+                print(f"L_idx: {label[0]}, ExitIdx: {label[1]}, VeloOut: {label[2]}")
+        else:
+            print("No missing labels.")
 
     # Count and print bubbles with VeloOut != -1
     valid_bubbles = saved_bubbles[saved_bubbles["VeloOut"] != -1]
@@ -269,7 +312,7 @@ def save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels):
     return saved_bubbles
 
 
-def load_folder(folder_path, plot, labels):
+def process_folder(folder_path, plot, labels):
     """
     Processes a single folder containing bubble run data.
 
@@ -286,18 +329,44 @@ def load_folder(folder_path, plot, labels):
     binlogdata = get_binlogdata(binlog_file)
     coef1 = binlogdata["channelCoef1"]
     coef2 = binlogdata["channelCoef2"]
+    flowRate = binlogdata["flowRate"]
+    acquisitionFrequency = binlogdata["acquisitionFrequency"]
 
-    extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot)
+    print(binlogdata)
+
+    extracted_bubbles = get_bubbles_advanced(bin_file, coef1, coef2, plot, folder_path, run_name)
 
     if labels:
         bubble_labels = get_labels(evt_file)
     else:
        bubble_labels = None 
 
-    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels)
+    save_bubbles_df = save_bubbles(extracted_bubbles, run_name, folder_path, bubble_labels, flowRate, acquisitionFrequency)
+    zip_all_csv_files(folder_path)
     return save_bubbles_df
 
 
+def zip_all_csv_files(main_folder):
+    """
+    Zip all CSV files in the main folder and its subfolders into a single ZIP file,
+    but include them all as if in a single flat directory.
+
+    Args:
+        main_folder (str): Path to the main folder containing subfolders with CSV files.
+    """
+    zip_path = os.path.join(main_folder, "All_bubbles.zip")
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(main_folder):  
+            for file in files:
+                if file.endswith('.csv'):
+                    full_path = os.path.join(root, file)  
+                    arcname = os.path.basename(file)  
+                    zipf.write(full_path, arcname=arcname) 
+                    print(f"Added {full_path} to {zip_path} as {arcname}")
+
+    print(f"All CSV files in {main_folder} and its subfolders zipped as {zip_path}")
+
+#THIS FUNCTION IS FOR BATCH LABELING OF DATASETS
 def process_main_folder(main_folder_path, plot=False, labels=False):
     """
     Processes all subfolders in a main folder, saves individual CSVs, and combines all data.
@@ -320,7 +389,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
             print(f"Processing folder: {subfolder_path}")
             try:
                 # Process the subfolder and save its DataFrame
-                df = load_folder(subfolder_path, plot=plot, labels=labels)
+                df = process_folder(subfolder_path, plot=plot, labels=labels)
                 combined_data.append(df)
             except Exception as e:
                 print(f"Error processing folder {subfolder_path}: {e}")
@@ -330,7 +399,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
         big_bubbles_data = pd.concat(combined_data, ignore_index=True)
 
         # Save the combined DataFrame to the main folder
-        output_file = os.path.join(main_folder_path, "BIG_BUBBLES_DATA.csv")
+        output_file = os.path.join(main_folder_path, "Combined_bubbles.csv")
         big_bubbles_data.to_csv(output_file, index=False, sep=";")
         print(f"Combined data saved to {output_file}")
 
@@ -338,11 +407,11 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
     else:
         print("No valid data found to combine.")
         return pd.DataFrame()
-    
+#CURRENTLY NOT IN USE
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles"
-    big_bubbles_df = process_main_folder(main_folder_path, plot=False, labels=True)
+    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles\bubble_data"
+    big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
     print("Processing complete.")
 
 

@@ -19,6 +19,11 @@ import dataloading
 # valid_velo_data_cropped: combines frame_waves and valid_velo_data
 # random_flip: duplicates and randomly flips some data
 # random_noise: duplicates and randomly adds noise to some data
+# bin_data: bins all y labels as data (does not regard X data) > part of flatten_data_distribution
+# calculate_duplication_factors: calculates how to scale data in bins > part of flatten_data_distribution
+# duplicate_and_augment_data: duplicates and augments data based on bin frequency > part of flatten_data_distribution
+# flatten_data_distribution > flattens the data distribution according to bin sizes, by augmenting and duplicating data
+
 
 
 ########################################################
@@ -138,30 +143,56 @@ def scale_time(data, length=None):
     return np.array(scaled_data)
 
 
-def frame_waves(data, mode, length=500):
+def frame_waves(data, mode, length=500, labels=None, n_crops=1, jump=0):
     """
     Function that crops to the waves. Only works for data that is only v_out or v_in signals (mode).
 
     Args:
         data: numpy array or list with the voltage data of the bubbles
+        labels: labels of the data. If n_crops=2, you must put in labels!
         mode: two options; "in" for data of bubble entry or "out" for data of bubble exit. 
         length: amount of timesteps of the cropped part. Standard value is set at 500.
+        n_crops: can be 1 or 2. For 1, makes one zoomed-in sample per bubble.
+                For 2, picks two parts of the wave signal (so final output doubles in size)
+        jump: Recommended value is an integer between 0-500 (for small lengths). 
+                Gives the amount of steps away from the frame edge 
+                (to obtain clearer waves, at the cost of possibly overshooting the bubble time frame)
 
     Output:
-        Numpy array with the cropped voltages, dimension [#samples, length]
+        cropped_data: Numpy array with the cropped voltages, dimension [#samples, length]
+        labels: labels put in and duplicated to match the cropped_data. If n_crop=1,
+        do not save the labels! Instead call the function using: cropped_data, _ = frame_waves(...)
+        
     """
+    if n_crops not in [1, 2]:
+        raise ValueError("n_crops should be either 1 or 2")
+    
     if not isinstance(data, np.ndarray):
         data = np.array(data)
 
     # if mode is in, grabs the last <length> datapoints
     if mode == "in":
-        cropped_data = np.array([sample[-length:] for sample in data])
+        if n_crops == 1:
+            cropped_data = np.array([sample[-length:-jump] for sample in data])
+        if n_crops == 2:
+            if labels is None:
+                raise ValueError("labels must be given in frame_waves when n_crops=2!")
+            cropped_data = np.array([sample[-(jump+length):-jump] for sample in data])
+            cropped_data2 = np.array([sample[-(jump+length+(length//2)):-(jump+length//2)] for sample in data])
+            cropped_data = np.concatenate([cropped_data, cropped_data2])
+            labels = np.concatenate([labels, labels])
 
-    # if mode is out, grabs the first <length
+    # if mode is out, grabs the first <length>
     if mode == "out":
-        cropped_data = np.array([sample[:length] for sample in data])
+        if n_crops == 1:
+            cropped_data = np.array([sample[jump:(jump+length)] for sample in data])
+        if n_crops == 2:
+            cropped_data = np.array([sample[jump:(jump+length)] for sample in data])
+            cropped_data2 = np.array([sample[(jump+length//2):(jump+length + length//2)] for sample in data])
+            cropped_data = np.concatenate([cropped_data, cropped_data2])
+            labels = np.concatenate([labels, labels])
     
-    return cropped_data
+    return cropped_data, labels
 
 
 def valid_velo_data(data, mode):
@@ -219,7 +250,7 @@ def valid_velo_data(data, mode):
     return np.array(x), np.array(y)
 
 
-def valid_velo_data_cropped(data, mode, length=500):
+def valid_velo_data_cropped(data, mode, length=500, jump=0):
     """
     Extracts the data with valid velocities and combines it with the frame_waves function. 
     Only works for pandas DataFrames right now.
@@ -237,15 +268,18 @@ def valid_velo_data_cropped(data, mode, length=500):
     if mode not in ["in", "out", "or"]:
         print("Error: choose valid mode. Choose from ['in', 'out', 'or']")
         return
+
+    if mode == "or" and jump != 0:
+        print("Note: the jump argument does not work yet for the 'or' mode. Now jump is automatically set at 0.")
     
     if mode == "in":
         valid = data[data["VeloIn"] != -1]
-        x = frame_waves(valid["voltage_entry"].tolist(), mode, length=length)
+        x = frame_waves(valid["voltage_entry"].tolist(), mode, length=length, jump=jump)
         y = valid["VeloIn"].astype(float).tolist()
 
     if mode == "out":
         valid = data[data["VeloOut"] != -1]
-        x = frame_waves(valid["voltage_exit"].tolist(), mode, length=length)
+        x = frame_waves(valid["voltage_exit"].tolist(), mode, length=length, jump=jump)
         y = valid["VeloOut"].astype(float).tolist()
     
     if mode == "or":
@@ -318,7 +352,7 @@ def random_flip(data, labels, chance, random_seed=None):
     return x_new, y_new
 
 
-def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
+def random_noise(data, labels, chance, noise_level=0.005, random_seed=None):
     """
     Duplicates some samples and adds noise to them.
     
@@ -363,6 +397,99 @@ def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
 
     return x_new, y_new
 
+
+def bin_data(y, bins):
+    """
+    Makes bins based on y data (velocities)
+
+    Args: 
+        y: numpy array with labels
+        bins: number of bins
+
+    Output:
+        hist: array that contains counts of datapoints in each bin.
+        bin_indices: array that indicates which bin each data point in y belongs to.
+    
+    """
+    hist, bin_edges = np.histogram(y, bins=bins)
+    bin_indices = np.digitize(y, bin_edges[:-1])
+    return hist, bin_indices
+
+
+def calculate_duplication_factors(hist, scale_factor=0.5):
+    """
+    Calculates the factors that each bin should be duplicated with. Less frequent bins will get duplicated more.
+
+    Args:
+        hist: array with samples per bin
+        scale_factor: determines how much the distribution will be flattened. 
+                        1=almost completely flat, 0=no flattening
+
+    Output:
+        array with the factors per bin
+        
+    """
+    max_freq = np.max(hist)
+    factors = np.zeros_like(hist, dtype=float)
+    # preventing division by 0
+    non_zero_indices = hist > 0
+
+    # scaling factor so less frequent data does not get fully duplicated 10 times.
+    factors[non_zero_indices] = (max_freq / hist[non_zero_indices]) * scale_factor
+    # No duplication for the most frequent bin
+    factors[hist == max_freq] = 1 
+
+    return factors
+
+
+def duplicate_and_augment_data(X, y, bin_indices, factors, noise=0.005):
+    """
+    Duplicates/augments the data per bin, scaled with the size of each bin 
+    (smaller bin -> more duplication)
+
+    Args:
+        X: X data
+        y: y data
+        bin_indices: array with which datapoints correspond to which bins (from bin_data)
+
+    Output:
+        augmented_X: lengthened and partly augmented X data
+        augmented_y: lenghthened y data of the augmented_X data
+    
+    """
+    augmented_X = X.copy()
+    augmented_y = y.copy()
+    for i, (x_value, y_value) in enumerate(zip(X, y)):
+        bin_idx = bin_indices[i] - 1
+        factor = factors[bin_idx]
+        for _ in range(int(factor) - 1):
+            if np.random.rand() < 0.5:
+                x_new, y_new = random_noise([x_value], [y_value], chance=1, noise_level=noise)
+            else:
+                x_new, y_new = random_flip([x_value], [y_value], chance=1)
+            augmented_X = np.concatenate([augmented_X, x_new])
+            augmented_y = np.concatenate([augmented_y, y_new])
+    return augmented_X, augmented_y
+
+
+def flatten_data_distribution(X, y, bins, scaling_factor=0.5, noise=0.005):
+    """
+    Combines the functions to flatten the distribution (by augmenting data).
+    
+    Args:
+        X: X data
+        y: y data
+        bins: amount of bins
+        scaling_factor: factor that prevents data from becoming all bins becoming the most frequent
+
+    Output:
+        augmented_X: lengthened and partly augmented X data
+        augmented_y: lenghthened y data of the augmented_X data
+    """
+    hist, bin_indices = bin_data(y, bins)
+    factors = calculate_duplication_factors(hist, scale_factor=scaling_factor)
+    augmented_X, augmented_y = duplicate_and_augment_data(X, y, bin_indices, factors, noise=noise)
+    return augmented_X, augmented_y
 
 "----------------------------------------------------------------------------------"
 "Loading the data from dataloading.py (from meta and bin files etc.)"
@@ -414,3 +541,5 @@ def random_noise(data, labels, chance, noise_level=0.01, random_seed=None):
 # whole_scaled_bubbles = scale_time(voltage_whole_2d, length=None)
 # plt.plot(np.arange(len(whole_scaled_bubbles[0])), whole_scaled_bubbles[0])
 # plt.show()
+import os
+print("Current working directory:", os.getcwd())
