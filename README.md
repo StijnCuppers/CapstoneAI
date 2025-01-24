@@ -55,7 +55,7 @@ then run the code and it will analyze your bubbles.
 The output will be saved in the form of a csv in your specified output path.
 
 The code will provide you a short summary of the dataframe and the amount of bubbles which have no label. After this it will give the predictions of the 3 models. The outcomes will be averaged to obtain a final prediction. This prediction is possible to check when the labels are available it will then give the standard deviation and the percentage. 
-it will also give the amount of bubbles it can predict with an uncertainty lower than 10%. 
+It will also give the amount of bubbles it can predict with an uncertainty lower than 10%. 
 In the given folder it will add the all_bubbles.zip, a CSV-file with the data, and a .PNG with an example of the bubbles how they are extracted.
 
 ## Main functions
