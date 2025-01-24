@@ -135,10 +135,7 @@ def load_scalers():
         target_scaler1 = pickle.load(target_file)
     with open(r'advanced_scalers\feature_scaler_2.pkl', 'rb') as feature_file:
         feature_scaler2 = pickle.load(feature_file)
-    #with open(r'advanced_scalers\target_scaler2.pkl', 'rb') as target_file:
-        #target_scaler2 = pickle.load(target_file)
-    target_scaler2 = None
-    return feature_scaler1, target_scaler1, feature_scaler2, target_scaler2
+    return feature_scaler1, target_scaler1, feature_scaler2
 
 def load_models():
     #GRU1 = GRUModel(1, 20, num_layers=2)
