@@ -7,9 +7,6 @@ path_to_output = r'C:\Users\slcup\Documents\Aerospace Engineering\Minor\Capstone
 import pandas as pd
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-device = 'cpu'
-from sklearn.model_selection import train_test_split
 import time
 
 # Function imports

@@ -4,9 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 
-import dataloading
-import preprocessing
-from sklearn.preprocessing import StandardScaler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -148,10 +145,8 @@ def load_models():
     #GRU2 = GRUModel(1, 20, num_layers=2)
     #GRU2.load_state_dict(torch.load(r"advanced_model_files\GRU2_lr0.01_H20_norm1_nlayer2.h5", map_location=torch.device('cpu')))
     #GRU2 = torch.load(r'final_model_files\GRU_lr0.02_H20_norm3_nlayer2.h5', map_location=torch.device('cpu'))
-    gru1 = GRUModel(1,20)  # Replace GRUModel with the actual model class
-    gru2 = GRUModel(1, 20)
-    gru1.load_state_dict(torch.load(r'final_model_files\GRU_lr0.01_H20_norm2_nlayer2.h5', map_location=torch.device('cpu')))
-    gru2.load_state_dict(torch.load(r'final_model_files\GRU_lr0.02_H20_norm3_nlayer2.h5', map_location=torch.device('cpu')))
+    gru1 = torch.load(r'advanced_model_files\GRU_lr0.01_H20_norm2_nlayer2.h5', map_location=torch.device('cpu'))
+    gru2 = torch.load(r'advanced_model_files\GRU2_lr0.01_H20_norm1_nlayer2.h5', map_location=torch.device('cpu'))
     lstm = torch.load(r"advanced_model_files\LSTM_lr0.005_H30_norm3_nlayer2.h5", map_location=torch.device('cpu'))
     
 
