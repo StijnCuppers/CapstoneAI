@@ -45,7 +45,7 @@ These libraries are used for handling, analyzing, and manipulating data:
 
 ## Usage
 To use our code you should clone the repository.
-Go to main.py and add the the path of the folder with the probedata you want to analyze in the "path_to_zips =" list.
+Go to main.py and add the path of the folder with the probedata you want to analyze in the "path_to_zips =" list.
 Add the desired output location to the "path_to_output" variable.
 Make sure you put "r" before the path if '\' is used in the paths.
 The folder should contain a .bin and a .binlog file and if wanted contain a .evtlog file.
