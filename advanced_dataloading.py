@@ -158,7 +158,7 @@ def get_bubbles_advanced(bin_file, coef1, coef2, plot=False, folder_path=None, r
     tE1 = tE - 1000
     tE1 = tE1[tE1 >= 0] 
 
-    tE0 = tE1 - 4001
+    tE0 = tE1 - 4000
     tE0 = tE0[tE0 >= 0] 
 
     bubbles = []
@@ -330,7 +330,7 @@ def process_folder(folder_path, plot, labels):
     coef1 = binlogdata["channelCoef1"]
     coef2 = binlogdata["channelCoef2"]
     flowRate = binlogdata["flowRate"]
-    acquisitionFrequency = ["acquisitionFrequency"]
+    acquisitionFrequency = binlogdata["acquisitionFrequency"]
 
     print(binlogdata)
 
@@ -410,7 +410,7 @@ def process_main_folder(main_folder_path, plot=False, labels=False):
 #CURRENTLY NOT IN USE
 
 if __name__ == "__main__":
-    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles\bubble_data2"
+    main_folder_path = R"C:\Users\TUDelft\Desktop\Main_bubbles\bubble_data"
     big_bubbles_df = process_folder(main_folder_path, plot=True, labels=True)
     print("Processing complete.")
 
