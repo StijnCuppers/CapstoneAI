@@ -7,9 +7,6 @@ path_to_output = r'C:\Users\slcup\Documents\Aerospace Engineering\Minor\Capstone
 import pandas as pd
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-device = 'cpu'
-from sklearn.model_selection import train_test_split
 import time
 
 # Function imports
@@ -21,7 +18,7 @@ from models import load_scalers, load_models, LSTMModel, GRUModel
 start_time = time.time()
 gru1, gru2, lstm = load_models()
 gru1.eval(), gru2.eval(), lstm.eval()
-feature_scaler, target_scaler, feature_scaler2, target_scaler2 = load_scalers()
+feature_scaler, target_scaler, feature_scaler2 = load_scalers()
 
 # Loop over all zips
 for file_path in path_to_data:
@@ -29,8 +26,8 @@ for file_path in path_to_data:
     df = process_folder(file_path, plot=True, labels=True)
     X_gru1 = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
     X_gru1_scaled = torch.tensor(feature_scaler.transform(X_gru1)[...,np.newaxis], dtype=torch.float32)   
-    X_gru2 = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
-    X_gru2_scaled = torch.tensor(feature_scaler.transform(X_gru2)[...,np.newaxis], dtype=torch.float32)
+    X_gru2 = frame_waves(df['VoltageOut'], length=250, jump=500)[0]
+    X_gru2_scaled = torch.tensor(feature_scaler2.transform(X_gru2)[...,np.newaxis], dtype=torch.float32)
     X_lstm = frame_waves(df['VoltageOut'], length=150, jump=0)[0]
     X_lstm_scaled = torch.tensor(feature_scaler.transform(X_lstm)[...,np.newaxis], dtype=torch.float32)
 
@@ -54,7 +51,6 @@ end_time = time.time()
 
 
 # Evaluation metrics (remove '''...''' if interested)
-'''
 valid_bubbles_ai = len(outcome_df[outcome_df['Standard deviation %'] < 10])/len(outcome_df) * 100
 valid_bubbles_boring_software = len(valid_velo_data(df)[0])/len(df) * 100
 
@@ -79,6 +75,5 @@ average_percentage_std = filtered_outcome_df['Standard deviation %'].mean()
 
 print(f"Percentage found valid bubbles (uncertainty < 10%) with speed difference <10% from truth:  {len(valid_test_results) / (len(outcome_df_valid)) * 100:.4f} %")
 print(f'Percentage AI found valid bubbles (uncertainty < 10%): {valid_bubbles_ai:.4f} % vs M2 analyzer: {valid_bubbles_boring_software:.4f} %, improvement: {((valid_bubbles_ai - valid_bubbles_boring_software)/valid_bubbles_boring_software)*100:.4f} %')
-print(f'Model uncertainty (average uncertainty of valid bubbles): {average_percentage_std:.4f} %')
+print(f'Model uncertainty (average uncertainty of valid bubbles): {average_percentage_std:.4f} % with {len(filtered_outcome_df) / len(outcome_df_valid) * 100} % of the labled samples')
 print(f"Time to execute: {end_time - start_time} seconds")
-'''
