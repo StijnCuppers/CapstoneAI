@@ -142,7 +142,7 @@ def valid_velo_data(data):
     return np.array(x), np.array(y)
 
 
-def valid_velo_data_cropped(data, length=500, jump=0):
+def valid_velo_data_cropped(data, length=500, jump=0, bubble_idx = False):
     """
     Extracts the data with valid velocities and combines it with the frame_waves function. 
     Only works for pandas DataFrames right now.
@@ -150,14 +150,23 @@ def valid_velo_data_cropped(data, length=500, jump=0):
     Args:
         data: enter the dataframe with bubble voltages and labels
         length: The amount of timesteps the output will be. Standard value is set at 500.
+        bubble_idx: If True, the function will also return the bubble indices.
 
     Output:
         x: Numpy array with cropped voltage data of all valid bubbles. Either only in or out signal.
         y: Numpy array with labels of all valid bubbles
+        idx: Numpy array with bubble indices (if bubble_idx=True)
     """
     valid = data[data["VeloOut"] != -1]
-    x = frame_waves(valid["voltage_exit"].tolist(), length=length, jump=jump)
+    x = frame_waves(valid["VoltageOut"].tolist(), length=length, jump=jump)[0]
     y = valid["VeloOut"].astype(float).tolist()
+
+    if bubble_idx:
+        # if in a later implementation the acquisition frequency is variable within a dataset/dataframe
+        # this functionality can be useful
+        idx = valid["bubble_idx"]
+        return np.array(x), np.array(y), np.array(idx)
+    
     return np.array(x), np.array(y)
 
 
